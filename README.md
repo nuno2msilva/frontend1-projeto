@@ -1,6 +1,6 @@
 # frontend1-projeto
 
-Titulo do website: Dailynote
+Titulo do website: Todoodledo
 
 Descrição do website: Website de To-do List
 
