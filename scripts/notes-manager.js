@@ -531,6 +531,30 @@ const NotesManager = (() => {
     
     // Restore editor if it was present
     if (editorEl) notesArea.prepend(editorEl);
+    
+    // After all notes are rendered, update scroll indicators
+    if (notesArea) {
+      setTimeout(() => updateScrollIndicators(notesArea), 100);
+    }
+  }
+
+  // Scroll indicator functions
+  function updateScrollIndicators(el) {
+    // Get indicators
+    const topIndicator = document.querySelector('.scroll-indicator-top');
+    const bottomIndicator = document.querySelector('.scroll-indicator-bottom');
+    
+    if (!topIndicator || !bottomIndicator) return;
+    
+    // Check if we can scroll up (more than 10px scrolled)
+    const canScrollUp = el.scrollTop > 10;
+    
+    // Check if we can scroll down (more than 10px remaining)
+    const canScrollDown = el.scrollHeight - el.scrollTop - el.clientHeight > 10;
+    
+    // Update visibility
+    topIndicator.classList.toggle('visible', canScrollUp);
+    bottomIndicator.classList.toggle('visible', canScrollDown);
   }
 
   // Bootstrap
@@ -617,13 +641,60 @@ const NotesManager = (() => {
     
     // Handle clicks outside the editor - use capture phase
     document.addEventListener('click', editor.handleOutsideClick, true);
+    
+    // Add scroll indicators
+    if (notesArea) {
+      // Initial check
+      updateScrollIndicators(notesArea);
+      
+      // Monitor scrolling
+      notesArea.addEventListener('scroll', () => {
+        updateScrollIndicators(notesArea);
+      });
+      
+      // Update on window resize too
+      window.addEventListener('resize', () => {
+        updateScrollIndicators(notesArea);
+      });
+    }
+  }
+
+  // Update layout variables
+  function updateLayoutVariables() {
+    const header = document.querySelector('header');
+    const footer = document.querySelector('footer');
+    
+    if (header) {
+      document.documentElement.style.setProperty('--header-height', `${header.offsetHeight}px`);
+    }
+    
+    if (footer) {
+      // Consistent footer spacing - 80px padding ensures button remains accessible
+      document.documentElement.style.setProperty('--footer-padding', '60px');
+      document.documentElement.style.setProperty('--footer-height', `${footer.offsetHeight}px`);
+    }
   }
 
   // Initialize the app when DOM is ready
   document.addEventListener('DOMContentLoaded', () => {
     bootstrap();
+    
+    // Create scroll indicators
+    const container = document.querySelector('.container') || document.body;
+    const topIndicator = document.createElement('div');
+    topIndicator.className = 'scroll-indicator scroll-indicator-top';
+    const bottomIndicator = document.createElement('div');
+    bottomIndicator.className = 'scroll-indicator scroll-indicator-bottom';
+    
+    container.appendChild(topIndicator);
+    container.appendChild(bottomIndicator);
+    
     displayNotes();
     setupEvents();
+    
+    // Update layout variables
+    updateLayoutVariables();
+    window.addEventListener('resize', updateLayoutVariables);
   });
 
   // Public API

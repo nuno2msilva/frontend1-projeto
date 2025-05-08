@@ -97,20 +97,50 @@ header {
   margin: 0 auto;
   box-sizing: border-box;
   overflow-y: auto;
-  height: calc(100vh - 140px);
-  padding-bottom: 80px;
-  width: 100%; /* Match footer width property */
-  padding-left: 1rem; /* Match footer padding */
-  padding-right: 1rem; /* Match footer padding */
+  height: calc(100vh - var(--header-height, 60px) - var(--footer-padding, 80px));
+  padding-bottom: 20px; /* Reduced from 80px */
+  width: 100%;
+  padding-left: 1rem;
+  padding-right: 1rem;
   
   /* Hide scrollbar but keep functionality */
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  position: relative;
 }
 
-/* Hide webkit scrollbar (Chrome, Safari, Edge) */
 #notes-area::-webkit-scrollbar {
   display: none;
+}
+
+/* Scroll indicators */
+.scroll-indicator {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 768px;
+  height: 40px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 10;
+}
+
+/* Position directly below the header */
+.scroll-indicator-top {
+  top: var(--header-height, 60px); /* Will position right after header */
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.3), transparent);
+}
+
+/* Position directly above the footer */
+.scroll-indicator-bottom {
+  bottom: 60px; /* Fixed position above the footer */
+  background: linear-gradient(to top, rgba(255, 255, 255, 0.3), transparent);
+}
+
+.scroll-indicator.visible {
+  opacity: 1;
 }
 
 /* Fixed footer */
@@ -173,8 +203,8 @@ footer {
 /* New note button */
 #new-note {
   pointer-events: auto;
-  width: 72px;
-  height: 72px;
+  width: 75px;
+  height: 75px;
   border-radius: 50%;
   background-color: var(--bg-color);
   color: var(--text-color);
@@ -186,8 +216,8 @@ footer {
   cursor: pointer;
   transition: box-shadow 0.3s ease, transform 0.2s ease;
   box-shadow: 0 4px 8px var(--shadow-color);
-  margin-right: 16px;
-  margin-bottom: 16px;
+  margin-right: 10px;
+  margin-bottom: 10px;
   padding: 0;
   line-height: 1;
   position: relative;
