@@ -158,7 +158,7 @@ const NotesManager = (() => {
         <div class="note-details">
           <p>${note.description || 'No description provided.'}</p>
           ${note.isCompleted && note.completedAt 
-            ? `<div class="completion-info">✅ Completed ${note.completedAt.date} @ ${note.completedAt.time}</div>` 
+            ? `<div class="completion-info">✅ ${note.completedAt.date} @ ${note.completedAt.time}</div>` 
             : ''}
           <div class="button-row">
             <button class="${note.isCompleted ? 'reset-note' : 'complete-note'}"></button>

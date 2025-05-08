@@ -366,7 +366,7 @@ footer {
 
 .action-buttons {
   display: flex;
-  gap: 12px;
+  gap: 20px; /* Increased from 12px to create more visual separation */
   justify-content: flex-end;
 }
 
@@ -377,6 +377,7 @@ footer {
 .delete-note,
 .save-note,
 .cancel-note {
+  margin-left: 10px;
   width: 36px;
   height: 36px;
   border-radius: 50%;
