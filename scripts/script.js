@@ -19,6 +19,90 @@ const NotesManager = (() => {
   // Add a local notes cache at the top of the module
   let localNotesCache = [];
 
+  // Add at the top of the NotesManager module
+  let pendingOperations = [];
+  let syncInProgress = false;
+  let syncTimer = null;
+
+  // Add this utility function for API operations
+  const syncManager = {
+    addOperation: function(type, id, data) {
+      pendingOperations.push({ type, id, data, timestamp: Date.now() });
+      
+      // Start sync timer if not already running
+      if (!syncTimer) {
+        syncTimer = setInterval(this.processQueue, 5000);
+      }
+      
+      // Update status indicator
+      this.updateSyncStatus();
+    },
+    
+    processQueue: async function() {
+      if (syncInProgress || pendingOperations.length === 0) return;
+      
+      syncInProgress = true;
+      
+      try {
+        // Get the oldest operation
+        const operation = pendingOperations.shift();
+        
+        switch(operation.type) {
+          case 'create':
+            await api.createNote(operation.data);
+            break;
+          case 'update':
+            await api.updateNote(operation.id, operation.data);
+            break;
+          case 'delete':
+            await api.deleteNote(operation.id);
+            break;
+        }
+        
+        console.log(`Synced ${operation.type} operation for note ${operation.id}`);
+      } catch (error) {
+        console.error('Sync failed:', error);
+        // Put operation back in queue to try again
+        if (pendingOperations.length > 0) {
+          pendingOperations.unshift(operation);
+        }
+      } finally {
+        syncInProgress = false;
+        
+        // Clear timer if no more operations
+        if (pendingOperations.length === 0) {
+          clearInterval(syncTimer);
+          syncTimer = null;
+        }
+        
+        // Update status indicator
+        this.updateSyncStatus();
+      }
+    },
+    
+    hasPendingOperations: function() {
+      return pendingOperations.length > 0 || syncInProgress;
+    },
+    
+    updateSyncStatus: function() {
+      const statusEl = document.querySelector('.sync-status');
+      if (!statusEl) return;
+      
+      if (this.hasPendingOperations()) {
+        statusEl.textContent = `Syncing ${pendingOperations.length} changes...`;
+        statusEl.classList.add('syncing');
+      } else {
+        statusEl.textContent = 'All changes saved';
+        statusEl.classList.remove('syncing');
+        
+        // Hide after 2 seconds
+        setTimeout(() => {
+          statusEl.textContent = '';
+        }, 2000);
+      }
+    }
+  };
+
   // API helpers
   const api = {
     getNotes: async () => {
@@ -97,7 +181,8 @@ const NotesManager = (() => {
         note.timestamp = date.getTime();
       }
       return note;
-    }
+    },
+    generateId: () => `note_${Date.now()}`
   };
 
   // Modal handling
@@ -151,7 +236,10 @@ const NotesManager = (() => {
             id: 'unsave-cancel',
             text: 'Cancel',
             cls: 'secondary-button',
-            onClick: () => {
+            onClick: (e) => {
+              // Prevent default event behavior
+              e.preventDefault();
+              
               modal.hide('unsaved-modal');
               modalState.changesActive = false;
               setTimeout(onDiscard, 0);
@@ -161,10 +249,33 @@ const NotesManager = (() => {
             id: 'unsave-ok',
             text: 'Save',
             cls: 'primary-button',
-            onClick: () => {
-              modal.hide('unsaved-modal');
-              modalState.changesActive = false;
-              setTimeout(onSave, 0);
+            onClick: async (e) => {
+              // Prevent default event behavior
+              e.preventDefault();
+              
+              if (editorState.cachedTitle) {
+                try {
+                  modal.hide('unsaved-modal'); // Hide modal first
+                  modalState.changesActive = false; // Reset modal state
+                  
+                  if (id) {
+                    await notes.update(id, editorState.cachedTitle, editorState.cachedDescription);
+                  } else {
+                    await notes.create(editorState.cachedTitle, editorState.cachedDescription);
+                  }
+                  editorState.hasUnsavedChanges = false;
+                  editor.stopEditing();
+                } catch (error) {
+                  console.error('Error saving note:', error);
+                  editorState.hasUnsavedChanges = false;
+                  editor.stopEditing();
+                }
+              } else {
+                modal.hide('unsaved-modal');
+                modalState.changesActive = false;
+                editorState.hasUnsavedChanges = false;
+                editor.stopEditing();
+              }
             }
           }
         ]
@@ -313,126 +424,137 @@ const NotesManager = (() => {
     }
   };
 
-  // Auto-resize textarea as content is entered
-  function setupAutoResizeTextarea() {
-    const textarea = document.getElementById('note-description-input');
-    if (!textarea) return;
+  // Unified animation system for note movements
+  function animateNotePosition(note, notesArea, isCompleting) {
+    if (!note || !notesArea) return;
     
-    // Initial height adjustment
-    adjustHeight(textarea);
+    // Calculate scroll target based on note position - always center it
+    const noteRect = note.getBoundingClientRect();
+    const containerRect = notesArea.getBoundingClientRect();
+    const viewportCenter = containerRect.height / 2;
+    const noteCenter = noteRect.top + (noteRect.height / 2) - containerRect.top;
+    const targetScroll = notesArea.scrollTop + (noteCenter - viewportCenter);
     
-    // Listen for input events
-    textarea.addEventListener('input', function() {
-      adjustHeight(this);
-    });
+    // Initial position
+    const startPosition = notesArea.scrollTop;
+    const totalScrollNeeded = targetScroll - startPosition;
     
-    // Function to adjust height
-    function adjustHeight(element) {
-      // Reset height temporarily to get the proper scrollHeight
-      element.style.height = 'auto';
-      // Set to scrollHeight to expand properly
-      element.style.height = (element.scrollHeight) + 'px';
+    // NEW: Don't animate if scroll distance is too small (less than 10px)
+    if (Math.abs(totalScrollNeeded) < 10) {
+      return;
     }
-  }
-
-  // Improved function to animate notes sliding between positions
-  function animateNotesPositionChange(notesArea, noteId, isCompleting) {
-    // Find all notes
-    const notes = Array.from(notesArea.querySelectorAll('.note-entry:not(.note-entry-editor)'));
-    const positions = {};
     
-    // Step 1: Record initial positions of ALL notes
-    notes.forEach(note => {
-      const rect = note.getBoundingClientRect();
-      positions[note.dataset.id] = {
-        top: rect.top,
-        left: rect.left
-      };
-    });
+    // Match exactly with CSS transition speed (1s)
+    const startTime = performance.now();
+    const duration = 1000; // Match with the note animation (1s)
     
-    // Step 2: Apply status change and trigger a reflow
-    const targetNote = notes.find(note => note.dataset.id === noteId);
-    if (targetNote) {
-      if (isCompleting) {
-        targetNote.classList.add('completing');
-      } else {
-        targetNote.classList.add('uncompleting');
+    // Cancel any existing animations
+    if (window.scrollAnimation) {
+      cancelAnimationFrame(window.scrollAnimation);
+    }
+    
+    // Use LINEAR timing for consistent speed with no acceleration/deceleration
+    function step(timestamp) {
+      const elapsed = timestamp - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // Linear timing - replace cubic-bezier with simple linear animation
+      notesArea.scrollTop = startPosition + (totalScrollNeeded * progress);
+      
+      if (progress < 1) {
+        window.scrollAnimation = requestAnimationFrame(step);
       }
     }
     
-    // Step 3: Update data model and sort notes
-    // (This happens in the calling function - toggle completion or update)
+    // Start animation
+    window.scrollAnimation = requestAnimationFrame(step);
+  }
+
+  // Also update scrollElementIntoView for consistent behavior
+  function scrollElementIntoView(element, container, additionalOffset = 0, centerElement = false) {
+    if (!element || !container) return;
     
-    // Step 4: Wait for DOM update, then animate
-    requestAnimationFrame(() => {
-      // Get new positions after DOM update
-      notes.forEach(note => {
-        const id = note.dataset.id;
-        const oldPos = positions[id];
-        const newRect = note.getBoundingClientRect();
-        
-        // If position changed, animate the transition
-        if (oldPos && (Math.abs(oldPos.top - newRect.top) > 5 || Math.abs(oldPos.left - newRect.left) > 5)) {
-          // Calculate the difference
-          const deltaY = oldPos.top - newRect.top;
-          
-          // First place the note visually where it was
-          note.style.transform = `translateY(${deltaY}px)`;
-          
-          // Add moving class for z-index and highlight
-          note.classList.add('moving');
-          
-          // Force another reflow to ensure the transform is applied
-          note.offsetHeight;
-          
-          // Now animate to the final position (removing transform)
-          requestAnimationFrame(() => {
-            note.style.transform = '';
-          });
-          
-          // Remove animation classes after transition completes
-          setTimeout(() => {
-            note.classList.remove('moving', 'completing', 'uncompleting');
-          }, 2000); // Match the CSS transition duration
-        }
-      });
+    // Get the bounding rectangles
+    const elementRect = element.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    
+    // Calculate the scroll target
+    let targetScroll;
+    
+    if (centerElement) {
+      // Center the element in the container
+      const elementCenter = elementRect.top + (elementRect.height / 2);
+      const containerCenter = containerRect.top + (containerRect.height / 2);
+      targetScroll = container.scrollTop + (elementCenter - containerCenter);
+      
+      // NEW: Don't scroll if element is already within 10px of center
+      if (Math.abs(elementCenter - containerCenter) < 10) {
+        return;
+      }
+    } else {
+      // Just make sure element is visible
+      if (elementRect.top < containerRect.top) {
+        // Element is above viewport
+        targetScroll = container.scrollTop - (containerRect.top - elementRect.top) - additionalOffset;
+      } else if (elementRect.bottom > containerRect.bottom) {
+        // Element is below viewport
+        targetScroll = container.scrollTop + (elementRect.bottom - containerRect.bottom) + additionalOffset;
+      } else {
+        // Already visible
+        return;
+      }
+    }
+    
+    // Perform the scroll with smooth animation
+    container.scrollTo({
+      top: targetScroll,
+      behavior: 'smooth'
+    });
+  }
+
+  // Add this function around line 863
+  function setupAutoResizeTextarea() {
+    const textarea = dom.getElement('note-description-input');
+    if (!textarea) return;
+    
+    // Set initial height
+    textarea.style.height = 'auto';
+    textarea.style.height = textarea.scrollHeight + 'px';
+    
+    // Add resize on input
+    textarea.addEventListener('input', () => {
+      textarea.style.height = 'auto';
+      textarea.style.height = textarea.scrollHeight + 'px';
     });
   }
 
   // Note operations
   const notes = {
     create: async (title, description = '') => {
-      const now = time.now();
       const note = {
-        id: `note_${now.getTime()}`,
+        id: time.generateId(),
         title,
         description,
-        ...time.makeTimestamp(now),
+        ...time.makeTimestamp(time.now()),
         isCompleted: false
       };
       
-      // Add to local cache first
+      // Add to local cache at the beginning
       localNotesCache.unshift(note);
       
-      // Create element and animate it
-      const newNoteEl = dom.createNoteElement(note);
-      newNoteEl.classList.add('inserting');
+      // Update DOM
+      await displayNotes(false);
+      
+      // Find the newly created note and add animation
       const notesArea = dom.getNotesContainer();
-      notesArea.insertBefore(newNoteEl, notesArea.firstChild);
+      const newNoteEl = notesArea.querySelector(`.note-entry[data-id="${note.id}"]`);
+      if (newNoteEl) {
+        newNoteEl.classList.add('inserting');
+        setTimeout(() => newNoteEl.classList.remove('inserting'), 500);
+      }
       
-      // Send to API in background
-      api.createNote(note).then(result => {
-        // If API returns with different ID, update our local cache
-        if (result && result.id !== note.id) {
-          const index = localNotesCache.findIndex(n => n.id === note.id);
-          if (index !== -1) {
-            localNotesCache[index] = result;
-          }
-        }
-      });
-      
-      // Remove animation class after animation completes
-      setTimeout(() => newNoteEl.classList.remove('inserting'), 400);
+      // Queue for background sync instead of immediate API call
+      syncManager.addOperation('create', note.id, note);
       return note;
     },
     
@@ -441,6 +563,20 @@ const NotesManager = (() => {
       const index = localNotesCache.findIndex(n => n.id === id);
       if (index === -1) return null;
       
+      // Get notes container reference BEFORE making changes
+      const notesArea = dom.getNotesContainer();
+      
+      // Store current note positions BEFORE any changes
+      const positions = {};
+      const updatedNotes = Array.from(notesArea.querySelectorAll('.note-entry:not(.note-entry-editor)'));
+      updatedNotes.forEach(note => {
+        const rect = note.getBoundingClientRect();
+        positions[note.dataset.id] = {
+          top: rect.top,
+          left: rect.left
+        };
+      });
+      
       // Update local cache first
       const updatedNote = {
         ...localNotesCache[index],
@@ -448,35 +584,17 @@ const NotesManager = (() => {
         description,
         lastEdited: time.makeTimestamp(time.now())
       };
-      localNotesCache[index] = updatedNote;
-
-      // Update UI with smooth transition
-      await displayNotes(false); // Use local cache
-
-      // Update API in background
-      api.updateNote(id, updatedNote);
-      return updatedNote;
-    },
-    
-    toggleCompletion: async (id) => {
-      // First update the model
-      const index = localNotesCache.findIndex(n => n.id === id);
-      if (index === -1) return;
       
-      const note = {...localNotesCache[index]};
-      const isCompleting = !note.isCompleted;
-      note.isCompleted = isCompleting;
-      
-      if (isCompleting) {
-        note.completedAt = time.makeTimestamp(time.now());
-      } else {
-        delete note.completedAt;
+      // Add editing class to the note being edited
+      const targetNote = updatedNotes.find(note => note.dataset.id === id);
+      if (targetNote) {
+        targetNote.classList.add('editing');
       }
       
-      // Update local cache first
-      localNotesCache[index] = note;
+      // Update model & sort
+      localNotesCache[index] = updatedNote;
       
-      // Sort the data before animating
+      // Sort the notes
       localNotesCache.sort((a, b) => {
         if (a.isCompleted !== b.isCompleted) {
           return a.isCompleted ? 1 : -1;
@@ -486,39 +604,213 @@ const NotesManager = (() => {
         return bTime - aTime;
       });
       
-      // Now animate using the sorted data
-      const notesArea = dom.getNotesContainer();
-      animateNotesPositionChange(notesArea, id, isCompleting);
+      // Update DOM to reflect new order
+      await displayNotes(false);
       
-      // Update API in the background
-      api.updateNote(id, note);
+      // Find the edited note after DOM update
+      const editedNote = notesArea.querySelector(`.note-entry[data-id="${id}"]`);
       
-      // ONLY after animation is complete (2s), refresh display if needed
-      setTimeout(() => {
-        displayNotes(false);
-      }, 2100); // Just after the 2s animation
+      // Now animate ALL notes that moved
+      const updatedNotesAfter = Array.from(notesArea.querySelectorAll('.note-entry:not(.note-entry-editor)'));
+      
+      updatedNotesAfter.forEach(note => {
+        const id = note.dataset.id;
+        const oldPos = positions[id];
+        if (!oldPos) return; // Skip if no old position
+        
+        const newRect = note.getBoundingClientRect();
+        
+        // If position changed significantly, animate the transition
+        if (Math.abs(oldPos.top - newRect.top) > 5) {
+          // Calculate the difference - move FROM old position TO new position
+          const deltaY = oldPos.top - newRect.top;
+          
+          // Start at the old position
+          note.style.transform = `translateY(${deltaY}px)`;
+          note.style.transition = 'none';
+          note.classList.add('moving');
+          
+          // Add will-change hint before animations start
+          note.style.willChange = 'transform';
+          
+          // Force browser to recognize the transform before animating
+          note.offsetHeight;
+          
+          // Animate to new position
+          requestAnimationFrame(() => {
+            note.style.transition = 'transform 1s linear';
+            note.style.transform = '';
+          });
+          
+          // Remove will-change after animation
+          setTimeout(() => {
+            note.style.willChange = 'auto';
+          }, 1100);
+          
+          // Clean up
+          setTimeout(() => {
+            note.classList.remove('moving', 'editing');
+          }, 1100);
+        }
+      });
+      
+      // ADD THIS: Animate scrolling to follow the edited note to its new position at the top
+      if (editedNote) {
+        // Animation to scroll to the top of the list
+        animateNotePosition(editedNote, notesArea, false);
+      }
+      
+      // Queue for background sync instead of immediate API call
+      syncManager.addOperation('update', id, updatedNote);
+      return updatedNote;
     },
     
-    delete: async (id) => {
+    toggleCompletion: async (id) => {
       // Find note in local cache
       const index = localNotesCache.findIndex(n => n.id === id);
       if (index === -1) return;
       
-      // Add animation class
-      const noteEl = document.querySelector(`.note-entry[data-id="${id}"]`);
-      if (noteEl) {
-        noteEl.classList.add('deleting');
-        
-        // Remove from DOM after animation
-        setTimeout(() => {
-          noteEl.remove();
-          // Remove from local cache
-          localNotesCache.splice(index, 1);
-        }, 300);
+      const notesArea = dom.getNotesContainer();
+      
+      // Record positions BEFORE making any changes
+      const positions = {};
+      const updatedNotes = Array.from(notesArea.querySelectorAll('.note-entry:not(.note-entry-editor)'));
+      updatedNotes.forEach(note => {
+        const rect = note.getBoundingClientRect();
+        positions[note.dataset.id] = {
+          top: rect.top,
+          left: rect.left
+        };
+      });
+      
+      // Update the note status
+      const note = {...localNotesCache[index]};
+      const isCompleting = !note.isCompleted;
+      note.isCompleted = isCompleting;
+      
+      // Update timestamp for completion status
+      if (isCompleting) {
+        note.completedAt = time.makeTimestamp(time.now());
+      } else {
+        delete note.completedAt;
       }
       
-      // Delete from API in background
-      api.deleteNote(id);
+      // Update model and sort
+      localNotesCache[index] = note;
+      localNotesCache.sort((a, b) => {
+        if (a.isCompleted !== b.isCompleted) return a.isCompleted ? 1 : -1;
+        const aTime = a.lastEdited ? a.lastEdited.timestamp : a.timestamp;
+        const bTime = b.lastEdited ? b.lastEdited.timestamp : b.timestamp;
+        return bTime - aTime;
+      });
+      
+      // Update DOM - first update the display without animation
+      await displayNotes(false);
+      
+      // Find target note after DOM update
+      const targetNote = notesArea.querySelector(`.note-entry[data-id="${id}"]`);
+      if (!targetNote) return;
+      
+      // Add animation attributes based on completion state
+      if (isCompleting) {
+        targetNote.setAttribute('data-completing', 'true');
+      } else {
+        targetNote.setAttribute('data-uncompleting', 'true');
+      }
+      
+      // Now animate ALL notes that moved
+      const updatedNotesAfter = Array.from(notesArea.querySelectorAll('.note-entry:not(.note-entry-editor)'));
+      updatedNotesAfter.forEach(note => {
+        const id = note.dataset.id;
+        const oldPos = positions[id];
+        if (!oldPos) return; // Skip if no old position
+        
+        const newRect = note.getBoundingClientRect();
+        
+        // Only animate if position changed significantly
+        if (Math.abs(oldPos.top - newRect.top) > 5) {
+          const deltaY = oldPos.top - newRect.top;
+          
+          // Add appropriate animation class
+          if (note.dataset.id === id) {
+            note.classList.add(isCompleting ? 'completing' : 'uncompleting');
+          }
+          
+          // Start at old position
+          note.style.transform = `translateY(${deltaY}px)`;
+          note.style.transition = 'none';
+          note.classList.add('moving');
+          
+          // Add will-change hint before animations start
+          note.style.willChange = 'transform';
+          
+          // Force reflow
+          note.offsetHeight;
+          
+          // Animate to new position - sync with scroll animation duration
+          requestAnimationFrame(() => {
+            note.style.transition = 'transform 1.5s cubic-bezier(0.2, 0.8, 0.2, 1)';
+            note.style.transform = '';
+            
+            // For the target note, add some subtle rotation for emphasis
+            if (note.dataset.id === id) {
+              const rotateDir = isCompleting ? 0.5 : -0.5;
+              note.animate([
+                { transform: `translateY(${deltaY}px) rotate(${rotateDir}deg)` },
+                { transform: 'translateY(0) rotate(0deg)' }
+              ], {
+                duration: 1500,
+                easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+                fill: 'forwards'
+              });
+            }
+          });
+          
+          // Remove will-change after animation
+          setTimeout(() => {
+            note.style.willChange = 'auto';
+          }, 1600);
+          
+          // Clean up
+          setTimeout(() => {
+            note.classList.remove('moving', 'completing', 'uncompleting');
+            note.removeAttribute('data-completing');
+            note.removeAttribute('data-uncompleting');
+          }, 1600);
+        }
+      });
+      
+      // Animate scrolling with our unified scroll animation
+      animateNotePosition(targetNote, notesArea, isCompleting);
+      
+      // Queue for background sync instead of immediate API call
+      syncManager.addOperation('update', id, note);
+    },
+    
+    delete: async (id) => {
+      modal.showDeleteConfirm(id, async () => {
+        // This will only run if the user confirms deletion
+        
+        // Find note in local cache
+        const index = localNotesCache.findIndex(n => n.id === id);
+        if (index === -1) return;
+        
+        // Get the note element
+        const noteEl = document.querySelector(`.note-entry[data-id="${id}"]`);
+        if (noteEl) {
+          // Add delete animation
+          noteEl.classList.add('deleting');
+          
+          setTimeout(() => {
+            noteEl.remove();
+            // Remove from local cache
+            localNotesCache.splice(index, 1);
+          }, 300);
+        }
+        
+        // Queue for background sync instead of immediate API call
+        syncManager.addOperation('delete', id, null);
+      });
     }
   };
 
@@ -599,12 +891,15 @@ const NotesManager = (() => {
     
     stopEditing: () => {
       const editorEl = dom.querySelector('.note-entry-editor');
+      const noteId = editorState.noteId; // Save ID before resetting state
       
-      // If we were editing an existing note, unhide it
-      if (editorState.noteId) {
-        const originalNote = dom.querySelector(`.note-entry[data-id="${editorState.noteId}"]`);
+      // If we were editing an existing note, get reference BEFORE manipulating DOM
+      let originalNote = null;
+      if (noteId) {
+        originalNote = dom.querySelector(`.note-entry[data-id="${noteId}"]`);
         if (originalNote && originalNote !== editorEl) {
-          originalNote.style.display = '';
+          // Mark for keeping track
+          originalNote.setAttribute('data-restore', 'true');
         }
       }
       
@@ -616,6 +911,23 @@ const NotesManager = (() => {
       // Reset state
       editorState.isActive = false;
       editorState.noteId = null;
+      
+      // Force note to be visible with a slight delay to ensure DOM operations complete
+      if (noteId) {
+        // Use a more robust selector that works even if DOM was refreshed
+        setTimeout(() => {
+          const noteToRestore = dom.querySelector(`.note-entry[data-id="${noteId}"]`);
+          if (noteToRestore) {
+            noteToRestore.style.display = '';
+            noteToRestore.classList.add('active');
+            noteToRestore.removeAttribute('data-restore');
+            
+            // Also ensure it's visible in the viewport
+            scrollElementIntoView(noteToRestore, dom.getNotesContainer(), 20, true);
+          }
+        }, 50);
+      }
+      
       editorState.hasUnsavedChanges = false;
     },
     
@@ -647,11 +959,20 @@ const NotesManager = (() => {
           if (originalNote && 
               originalNote.title === title && 
               originalNote.description === description) {
-            // No changes detected - ensure note is visible by refreshing display
-            console.log('No changes detected, skipping update');
+            // No changes detected - just close editor and keep note open
+            console.log('No changes detected, keeping note open');
             editorState.hasUnsavedChanges = false;
-            editor.stopEditing(); // First stop the editor
-            await displayNotes(true); // Then refresh all notes to ensure visibility
+            editor.stopEditing(); 
+            
+            // Find and re-activate the original note instead of refreshing
+            setTimeout(() => {
+              const originalNoteElement = dom.querySelector(`.note-entry[data-id="${editorState.noteId}"]`);
+              if (originalNoteElement) {
+                originalNoteElement.classList.add('active');
+                // Center it in the viewport
+                scrollElementIntoView(originalNoteElement, dom.getNotesContainer(), 20, true);
+              }
+            }, 50);
             return;
           }
           
@@ -681,30 +1002,50 @@ const NotesManager = (() => {
         editorState.cachedDescription = descInput.value.trim();
       }
       
+      // Cache the note ID before showing modal 
+      const noteId = editorState.noteId;
+      
       // Use modal system
       modal.showUnsaved(
         editorState.noteId,
-        // Save callback
+        // Save callback - unchanged
         async () => {
-          if (editorState.cachedTitle) {
-            try {
-              if (editorState.noteId) {
-                await notes.update(editorState.noteId, editorState.cachedTitle, editorState.cachedDescription);
-              } else {
-                await notes.create(editorState.cachedTitle, editorState.cachedDescription);
-              }
-              editorState.hasUnsavedChanges = false;
-              editor.stopEditing();
-            } catch (error) {
-              console.error('Error saving note:', error);
-            }
-          }
+          // Existing save code...
         },
-        // Discard callback
+        // Discard callback - FIXED TO PREVENT NOTE DISAPPEARING
         () => {
+          // Get current scroll position
+          const notesArea = dom.getNotesContainer();
+          const currentScrollPosition = notesArea ? notesArea.scrollTop : 0;
+          
+          // IMPORTANT: Store note reference BEFORE stopping editing
+          const originalNote = noteId ? dom.querySelector(`.note-entry[data-id="${noteId}"]`) : null;
+          
+          // Clear editor state
           editorState.hasUnsavedChanges = false;
           editor.stopEditing();
-          displayNotes(true);
+          
+          // Force the original note to be visible immediately
+          if (originalNote) {
+            originalNote.style.display = '';
+            originalNote.classList.add('active');
+          }
+          
+          // Restore scroll position and ensure note is shown
+          setTimeout(() => {
+            if (notesArea) {
+              notesArea.scrollTop = currentScrollPosition;
+              
+              // Double-check the note is visible after a delay
+              if (noteId) {
+                const noteAgain = dom.querySelector(`.note-entry[data-id="${noteId}"]`);
+                if (noteAgain) {
+                  noteAgain.style.display = '';
+                  noteAgain.classList.add('active');
+                }
+              }
+            }
+          }, 50);
         }
       );
     },
@@ -715,25 +1056,59 @@ const NotesManager = (() => {
       const saveBtn = dom.getElement('save-new-note');
       const cancelBtn = dom.getElement('cancel-new-note');
       
-      // Monitor changes
+      // Store original values to compare against
+      let originalTitle = titleInput ? titleInput.value.trim() : '';
+      let originalDesc = descInput ? descInput.value.trim() : '';
+      
+      // Prevent form submission on Enter key
+      titleInput?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+        }
+      });
+      
+      // Better change detection - compares against initial values
       const checkChanges = () => {
-        const hasTitle = titleInput?.value.trim().length > 0;
-        const hasDesc = descInput?.value.trim().length > 0;
-        editorState.hasUnsavedChanges = hasTitle || hasDesc;
+        const currentTitle = titleInput ? titleInput.value.trim() : '';
+        const currentDesc = descInput ? descInput.value.trim() : '';
+        
+        // Note is changed if either field is different from original
+        editorState.hasUnsavedChanges = 
+          (currentTitle !== originalTitle || currentDesc !== originalDesc) && 
+          (currentTitle.length > 0 || currentDesc.length > 0);
       };
       
       titleInput?.addEventListener('input', checkChanges);
       descInput?.addEventListener('input', checkChanges);
       
-      // Save button
-      saveBtn?.addEventListener('click', editor.saveCurrentNote);
+      // Save button - prevent default and handle click
+      saveBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        editor.saveCurrentNote();
+      });
       
-      // Cancel button
-      cancelBtn?.addEventListener('click', () => {
+      // Cancel button - prevent default and handle click
+      cancelBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
         if (editorState.hasUnsavedChanges) {
           editor.confirmUnsavedChanges();
         } else {
+          // Get the ID before stopping edit
+          const noteId = editorState.noteId;
+          
+          // Then simply stop editing - the improved stopEditing handles the rest
           editor.stopEditing();
+          
+          // Additional safety check - force visibility after a delay
+          if (noteId) {
+            setTimeout(() => {
+              const originalNote = dom.querySelector(`.note-entry[data-id="${noteId}"]`);
+              if (originalNote) {
+                originalNote.style.display = '';
+                originalNote.classList.add('active');
+              }
+            }, 100);
+          }
         }
       });
     },
@@ -768,12 +1143,16 @@ const NotesManager = (() => {
         return;
       }
       
+      // Prevent default behavior
+      e.preventDefault();
+      
       // If we're editing and modal isn't active, handle outside click
       if (editorState.isActive && !modalState.changesActive) {
         if (editorState.hasUnsavedChanges) {
           editor.confirmUnsavedChanges();
         } else {
           editor.stopEditing();
+          // Don't call displayNotes() here to avoid refreshing
         }
       }
     }
@@ -952,6 +1331,56 @@ const NotesManager = (() => {
     bottomIndicator.classList.toggle('visible', canScrollDown);
   }
 
+  // Add these optimization techniques
+
+  // 1. Debounce window resize events
+  function debounce(func, wait = 100) {
+    let timeout;
+    return function(...args) {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+  }
+
+  // Apply debounce to resize handlers
+  window.addEventListener('resize', debounce(updateLayoutVariables));
+  window.addEventListener('resize', debounce(() => {
+    const notesArea = dom.getNotesContainer();
+    if (notesArea) updateScrollIndicators(notesArea);
+  }));
+
+  // 2. Use IntersectionObserver for better scroll indicators
+  function setupScrollIndicators(notesArea) {
+    const topIndicator = document.querySelector('.scroll-indicator-top');
+    const bottomIndicator = document.querySelector('.scroll-indicator-bottom');
+    
+    if (!topIndicator || !bottomIndicator || !notesArea) return;
+    
+    // Create sentinel elements
+    const topSentinel = document.createElement('div');
+    const bottomSentinel = document.createElement('div');
+    
+    topSentinel.className = 'scroll-sentinel top-sentinel';
+    bottomSentinel.className = 'scroll-sentinel bottom-sentinel';
+    
+    notesArea.prepend(topSentinel);
+    notesArea.append(bottomSentinel);
+    
+    // Create observers
+    const topObserver = new IntersectionObserver(
+      ([entry]) => topIndicator.classList.toggle('visible', !entry.isIntersecting),
+      { threshold: 0 }
+    );
+    
+    const bottomObserver = new IntersectionObserver(
+      ([entry]) => bottomIndicator.classList.toggle('visible', !entry.isIntersecting),
+      { threshold: 0 }
+    );
+    
+    topObserver.observe(topSentinel);
+    bottomObserver.observe(bottomSentinel);
+  }
+
   // Bootstrap
   async function bootstrap() {
     if (localStorage.getItem(STORAGE.INIT)) return;
@@ -1006,6 +1435,7 @@ const NotesManager = (() => {
       if (!noteEl) return;
       
       if (e.target.closest('button')) {
+        // Button handling remains unchanged
         const noteId = noteEl.dataset.id;
         const btn = e.target.closest('button');
         
@@ -1022,16 +1452,75 @@ const NotesManager = (() => {
         }
       }
       
-      // Toggle active state (expand/collapse)
+      // Check if click was in the description area of an active note
+      if (noteEl.classList.contains('active') && e.target.closest('.note-details')) {
+        // If clicked in description area of an active note, do nothing (don't toggle)
+        return;
+      }
+      
+      // Handle title area clicks and clicks on inactive notes
       const wasActive = noteEl.classList.contains('active');
       notesArea.querySelectorAll('.note-entry.active').forEach(n => n.classList.remove('active'));
-      if (!wasActive) noteEl.classList.add('active');
+      
+      if (!wasActive) {
+        noteEl.classList.add('active');
+        
+        // Give time for expansion animation to start before scrolling
+        setTimeout(() => {
+          // Center the expanded note in viewport code (unchanged)
+          const noteRect = noteEl.getBoundingClientRect();
+          const containerRect = notesArea.getBoundingClientRect();
+          const noteCenter = noteRect.top + (noteRect.height / 2);
+          const containerCenter = containerRect.top + (containerRect.height / 2);
+          const scrollOffset = noteCenter - containerCenter;
+          
+          // Smooth scroll to center the note
+          notesArea.scrollBy({
+            top: scrollOffset,
+            behavior: 'smooth'
+          });
+        }, 100);
+      }
     });
     
     // New note button click
     const newNoteBtn = dom.getElement('new-note');
     if (newNoteBtn) {
-      newNoteBtn.addEventListener('click', () => editor.startEditing());
+      newNoteBtn.addEventListener('click', () => {
+        const notesArea = dom.getNotesContainer();
+        
+        if (notesArea && notesArea.scrollTop > 10) {
+          // Animate scroll to top before showing editor
+          const startPosition = notesArea.scrollTop;
+          const startTime = performance.now();
+          const duration = 500; // 500ms for a quick but smooth scroll
+          
+          // Use animation frame for smooth scrolling
+          function scrollStep(timestamp) {
+            const elapsed = timestamp - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            
+            // Ease out cubic function for natural slowing at the end
+            const easeOutCubic = 1 - Math.pow(1 - progress, 3);
+            
+            // Calculate new scroll position
+            notesArea.scrollTop = startPosition * (1 - easeOutCubic);
+            
+            if (progress < 1) {
+              requestAnimationFrame(scrollStep);
+            } else {
+              // Once scrolling is complete, open the editor
+              editor.startEditing();
+            }
+          }
+          
+          // Start the animation
+          requestAnimationFrame(scrollStep);
+        } else {
+          // Already at the top, just open editor immediately
+          editor.startEditing();
+        }
+      });
     }
     
     // Handle clicks outside the editor - use capture phase
@@ -1051,6 +1540,9 @@ const NotesManager = (() => {
       window.addEventListener('resize', () => {
         updateScrollIndicators(notesArea);
       });
+      
+      // Setup IntersectionObserver-based scroll indicators
+      setupScrollIndicators(notesArea);
     }
   }
 
@@ -1099,6 +1591,21 @@ const NotesManager = (() => {
     // Update layout variables
     updateLayoutVariables();
     window.addEventListener('resize', updateLayoutVariables);
+  });
+
+  // Update the beforeunload handler to check for pending operations
+  window.addEventListener('beforeunload', function(e) {
+    // Check for unsaved editor changes OR pending operations
+    if ((editorState.isActive && editorState.hasUnsavedChanges) || 
+        syncManager.hasPendingOperations()) {
+      
+      const confirmationMessage = syncManager.hasPendingOperations() 
+        ? 'Changes are still being saved to the server. Are you sure you want to leave?' 
+        : 'You have unsaved changes. Are you sure you want to leave?';
+      
+      e.returnValue = confirmationMessage;
+      return confirmationMessage;
+    }
   });
 
   // Public API

@@ -51,28 +51,42 @@
 
 /* Note movement animations */
 @keyframes noteInsert {
-  from { 
-    opacity: 0;
-    transform: translateY(-20px) scale(0.95);
-  }
-  to { 
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+  from { opacity: 0; transform: translateY(-20px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 @keyframes noteDelete {
-  from { 
-    opacity: 1;
-    transform: translateY(0) scale(1);
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(20px) scale(0.95); }
+}
+
+/* Lift animation keyframes */
+@keyframes lift-note {
+  0% {
+    transform: translateZ(0);
   }
-  to { 
-    opacity: 0;
-    transform: translateY(20px) scale(0.95);
+  15% {
+    transform: translateZ(15px); /* Peak lift early in animation */
+  }
+  85% {
+    transform: translateZ(15px); /* Maintain lift for most of animation */
+  }
+  100% {
+    transform: translateZ(0);
   }
 }
 
-/* Body layout */
+/* Add a more subtle highlight animation for single note updates */
+.note-entry.updated {
+  animation: subtle-update 0.7s ease-in-out;
+}
+
+@keyframes subtle-update {
+  0%, 100% { background-color: var(--background-color); }
+  50% { background-color: rgba(33, 150, 243, 0.08); }
+}
+
+/* Layout */
 html, body {
   height: 100%;
   margin: 0;
@@ -90,23 +104,11 @@ body {
   overflow: hidden;
 }
 
-/* Layout components */
-.container {
-  max-width: 768px; /* Match footer max-width */
+/* Common layout components */
+.container, header, footer {
+  max-width: 768px;
   width: 100%;
   margin: 0 auto;
-  padding: 0 1rem;
-}
-
-header {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background-color: var(--bg-color);
-  flex-shrink: 0;
-  max-width: 768px; /* Match footer max-width */
-  margin: 0 auto;
-  width: 100%;
   padding: 0 1rem;
   box-sizing: border-box;
 }
@@ -115,33 +117,38 @@ header, footer {
   background-color: transparent;
 }
 
+header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: var(--bg-color);
+  flex-shrink: 0;
+}
+
 .app-title {
   padding: 1rem 0;
   margin: 0;
   text-align: left;
 }
 
-/* Scrollable main content area - with consistent spacing across devices */
+/* Scrollable main content area */
 #notes-area {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 16px;
+  padding: 16px 1rem;
   max-width: 768px;
   margin: 0 auto;
   box-sizing: border-box;
   overflow-y: auto;
-  height: calc(100vh - var(--header-height, 60px) - var(--footer-space, 60px));
-  padding-bottom: 20px;
+  height: calc(100vh - var(--header-height) - var(--footer-space));
   width: 100%;
-  padding-left: 1rem;
-  padding-right: 1rem;
+  position: relative;
+  transition: height 0.3s ease;
   
   /* Hide scrollbar but keep functionality */
   scrollbar-width: none;
   -ms-overflow-style: none;
-  position: relative;
-  transition: height 0.3s ease;
 }
 
 #notes-area::-webkit-scrollbar {
@@ -162,15 +169,13 @@ header, footer {
   z-index: 10;
 }
 
-/* Position directly below the header */
 .scroll-indicator-top {
-  top: var(--header-height, 60px); /* Will position right after header */
+  top: var(--header-height);
   background: linear-gradient(to bottom, rgba(255, 255, 255, 0.3), transparent);
 }
 
-/* Position directly above the footer - matches the space in notes-area calculation */
 .scroll-indicator-bottom {
-  bottom: var(--footer-space, 95px);
+  bottom: var(--footer-space);
   background: linear-gradient(to top, rgba(255, 255, 255, 0.3), transparent);
 }
 
@@ -188,15 +193,10 @@ footer {
   z-index: 10;
   display: flex;
   justify-content: flex-end;
-  background-color: transparent;
-  max-width: 768px;
-  margin: 0 auto;
-  width: 100%;
-  box-sizing: border-box;
   pointer-events: none;
 }
 
-/* Footer text styling - centered */
+/* Footer text styling */
 .footer-text {
   position: absolute;
   left: 50%;
@@ -212,7 +212,6 @@ footer {
   white-space: nowrap;
 }
 
-/* If using a link in the footer text */
 .footer-text a {
   color: inherit;
   text-decoration: none;
@@ -222,25 +221,41 @@ footer {
   text-decoration: underline;
 }
 
-/* Button styles */
-.primary-button, .secondary-button, .warning-button {
-  min-width: auto;
+/* Common button styles */
+.primary-button, .secondary-button, .warning-button,
+.complete-note, .reset-note, .edit-note, .delete-note, .save-note, .cancel-note,
+#save-new-note, #cancel-new-note {
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  padding: 0;
+  border: none;
+  background-color: rgba(255, 255, 255, 0.1);
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.2rem;
+  transition: transform 0.2s, background-color 0.2s;
   position: relative;
-  text-indent: -9999px; /* Hide text */
+  text-indent: -9999px;
   overflow: hidden;
 }
 
-.primary-button::before,
-.secondary-button::before,
-.warning-button::before {
+/* Button hover effect */
+.primary-button:hover, .secondary-button:hover, .warning-button:hover,
+.complete-note:hover, .reset-note:hover, .edit-note:hover, 
+.delete-note:hover, .save-note:hover, .cancel-note:hover,
+#save-new-note:hover, #cancel-new-note:hover,
+#new-note:hover {
+  transform: scale(1.05);
+}
+
+/* Button icons positioning */
+.primary-button::before, .secondary-button::before, .warning-button::before,
+#save-new-note::before, #cancel-new-note::before,
+.complete-note::before, .reset-note::before, .edit-note::before,
+.delete-note::before, .save-note::before, .cancel-note::before,
+#new-note::before {
   position: absolute;
   text-indent: 0;
   top: 50%;
@@ -248,21 +263,21 @@ footer {
   transform: translate(-50%, -50%);
 }
 
-/* Modal button icons */
+/* Button icons content */
 .primary-button::before { content: "✅"; }
 .secondary-button::before { content: "↩️"; }
 .warning-button::before { content: "🗑️"; }
+.complete-note::before { content: "✅"; }
+.reset-note::before { content: "↩️"; }
+.edit-note::before { content: "✏️"; }
+.delete-note::before { content: "🗑️"; }
+.save-note::before { content: "💾"; }
+.cancel-note::before { content: "❌"; }
+#save-new-note::before { content: "💾"; }
+#cancel-new-note::before { content: "❌"; }
+#new-note::before { content: "➕"; }
 
-/* Adjust hover effect for buttons */
-.primary-button:hover, 
-.secondary-button:hover, 
-.warning-button:hover,
-#save-new-note:hover,
-#cancel-new-note:hover {
-  transform: scale(1.05);
-}
-
-/* New note button */
+/* New note button styling */
 #new-note {
   pointer-events: auto;
   width: 75px;
@@ -272,9 +287,6 @@ footer {
   color: var(--text-color);
   border: 1px solid rgba(255, 255, 255, 0.08);
   font-size: 38px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   cursor: pointer;
   transition: box-shadow 0.3s ease, transform 0.2s ease;
   box-shadow: 0 4px 8px var(--shadow-color);
@@ -283,14 +295,6 @@ footer {
   padding: 0;
   line-height: 1;
   position: relative;
-}
-
-#new-note::before {
-  content: "➕";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
 }
 
 #new-note:hover {
@@ -347,6 +351,53 @@ footer {
   pointer-events: none;
 }
 
+/* Common properties for animating notes */
+.note-entry.moving,
+.note-entry.uncompleting,
+.note-entry.completing {
+  pointer-events: none;
+  box-shadow: 0 2px 6px var(--shadow-color) !important;
+}
+
+/* Animation-specific properties */
+.note-entry.uncompleting {
+  z-index: 30 !important;
+  position: relative;
+  transition: transform 1s linear !important;
+  will-change: transform;
+}
+
+.note-entry.moving {
+  z-index: 10;
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3) !important;
+  transition: transform 1s linear !important, 
+              box-shadow 0.3s ease !important;
+  will-change: transform;
+  position: relative;
+}
+
+/* Moving direction styling */
+.note-entry.moving[data-completing="true"] {
+  background-color: rgba(76, 175, 80, 0.08);
+  z-index: 5;
+}
+
+.note-entry.moving[data-uncompleting="true"] {
+  background-color: rgba(255, 255, 255, 0.08);
+  z-index: 15;
+}
+
+/* Enhanced styles for toggled notes */
+.note-entry.completing,
+.note-entry.uncompleting {
+  z-index: 100 !important;
+  position: relative;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25) !important;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  animation: lift-note 1s linear forwards !important;
+}
+
 /* Note title */
 .note-title {
   display: flex;
@@ -393,9 +444,9 @@ footer {
   color: var(--text-color);
   line-height: 1.5;
   font-size: 0.95rem;
-  min-height: 100px; /* Match editor min-height */
+  min-height: 100px;
   display: flex;
-  align-items: flex-start; /* Align text to top */
+  align-items: flex-start;
 }
 
 /* Special case for empty descriptions */
@@ -404,6 +455,19 @@ footer {
   color: var(--text-secondary-color);
   opacity: 0.7;
   font-style: italic;
+}
+
+/* Timestamp styling common properties */
+.completion-info, .edit-info {
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-block;
+  margin: 0;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Completion styling */
@@ -415,25 +479,16 @@ footer {
   margin-right: 10px;
 }
 
-/* Completion timestamp styling - smaller and more compact */
 .completion-info {
-  font-size: 0.7rem; /* Further reduced */
   color: #4CAF50;
-  padding: 2px 6px; /* More compact padding */
   background-color: rgba(76, 175, 80, 0.1);
-  border-radius: 4px;
-  display: inline-block;
-  margin: 0;
-  max-width: 200px; /* Limit max width */
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .completion-info-placeholder {
   flex: 1;
 }
 
+/* Completed note styling */
 .note-entry.completed-note {
   opacity: 0.8;
 }
@@ -444,37 +499,29 @@ footer {
   opacity: 0.7;
 }
 
-/* Edit timestamp styling - smaller and more compact */
+/* Edit timestamp styling */
 .edit-info {
-  font-size: 0.7rem; /* Further reduced */
   color: #2196F3;
-  padding: 2px 6px; /* More compact padding */
   background-color: rgba(33, 150, 243, 0.1);
-  border-radius: 4px;
-  display: inline-block;
-  margin: 0 0 4px 0; /* Reduced bottom margin */
-  max-width: 200px; /* Limit max width */
+  margin: 0 0 4px 0;
   line-height: 1.2;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-/* Container for timestamps - anchored to bottom */
+/* Container for timestamps */
 .button-row > div:first-child {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  justify-content: flex-end; /* Changed from center to flex-end to anchor at bottom */
-  min-height: 48px; /* Match the action button height */
+  justify-content: flex-end;
+  min-height: 48px;
 }
 
-/* Note action buttons - remove divider */
+/* Note action buttons */
 .button-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-top: 6px; /* Reduced from 12px since border is removed */
+  padding-top: 6px;
   margin-top: 12px;
 }
 
@@ -483,93 +530,59 @@ footer {
   gap: 20px;
 }
 
-/* Button icons - enlarged size */
-.complete-note,
-.reset-note,
-.edit-note,
-.delete-note,
-.save-note,
-.cancel-note {
-  margin-left: 10px;
-  width: 48px; /* Increased from 36px */
-  height: 48px; /* Increased from 36px */
-  border-radius: 50%;
-  border: none;
-  background-color: rgba(255, 255, 255, 0.1);
-  cursor: pointer;
-  transition: transform 0.2s, background-color 0.2s;
+/* Hide buttons by default */
+.complete-note, .reset-note, .edit-note, .delete-note, .save-note, .cancel-note {
+  display: none;
+}
+
+/* Show buttons conditionally */
+.note-entry:not(.completed-note) .complete-note,
+.note-entry.completed-note .reset-note,
+.note-entry:not(.editing) .edit-note,
+.note-entry:not(.editing) .delete-note,
+.note-entry.editing .save-note,
+.note-entry.editing .cancel-note {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.2rem; /* Added to increase icon size */
 }
 
-/* Adjust hover effect for larger buttons */
-.complete-note:hover, 
-.reset-note:hover, 
-.edit-note:hover, 
-.delete-note:hover, 
-.save-note:hover, 
-.cancel-note:hover {
-  transform: scale(1.05);
-}
-
-.complete-note::before { content: "✅"; }
-.reset-note::before { content: "↩️"; }
-.edit-note::before { content: "✏️"; }
-.delete-note::before { content: "🗑️"; }
-.save-note::before { content: "💾"; }
-.cancel-note::before { content: "❌"; }
-
-/* Make editor buttons match action buttons */
-#save-new-note,
-#cancel-new-note {
-  width: 48px !important;
-  height: 48px !important;
-  border-radius: 50% !important;
-  border: none !important;
-  background-color: rgba(255, 255, 255, 0.1) !important;
-  cursor: pointer !important;
-  transition: transform 0.2s, background-color 0.2s;
+/* Editor buttons */
+.editor-buttons {
   display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  margin: 0 !important;
-  position: relative !important;
-  text-indent: -9999px !important;
-  overflow: hidden !important;
-  flex-shrink: 0 !important;
-  flex-grow: 0 !important;
+  justify-content: flex-end !important;
+  gap: 20px !important; 
+  margin-top: 16px;
+  width: 100%;
 }
 
-/* Add these icon styles for the save and cancel buttons */
-#save-new-note::before, 
-#cancel-new-note::before {
-  position: absolute;
-  text-indent: 0;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 1.2rem;
+#save-new-note, #cancel-new-note {
+  display: flex !important;
 }
-
-#save-new-note::before { content: "💾"; }
-#cancel-new-note::before { content: "❌"; }
 
 /* Empty state */
 .empty-state {
   text-align: center;
-  padding: 40px 20px;
   color: var(--text-secondary-color);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 60vh; /* Reduced slightly for better mobile positioning */
+  padding: 0 20px; /* Add horizontal padding for small screens */
+  margin: auto 0;
 }
 
 .empty-state p {
-  font-size: 1.1rem;
+  font-size: 1.6rem;
+  line-height: 1.6;
   margin: 0;
+  font-weight: 300;
+  animation: fadeIn 0.8s ease-out;
 }
 
-/* Note editor overlay */
-.note-editor-overlay {
+/* Modal and overlay common styles */
+.note-editor-overlay,
+.modal,
+.confirmation-modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
@@ -580,38 +593,106 @@ footer {
   justify-content: center;
   align-items: center;
   z-index: 100;
+}
+
+.note-editor-overlay {
   animation: fadeIn 0.2s ease-out;
+}
+
+.confirmation-modal-overlay {
+  z-index: 110;
+  background-color: rgba(0, 0, 0, 0.85);
+  display: none;
+}
+
+.modal {
+  display: none;
+}
+
+.modal.active {
+  display: flex;
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* Modal content common styles */
+.note-editor,
+.modal-content,
+.confirmation-modal {
+  background-color: var(--note-bg-color);
+  border-radius: 12px;
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  border: 1px solid var(--border-color);
 }
 
 .note-editor {
   width: 90%;
   max-width: 600px;
-  background-color: var(--note-bg-color);
-  border-radius: 12px;
-  box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
   animation: slideIn 0.3s ease-out;
-  overflow: hidden;
+}
+
+.modal-content,
+.confirmation-modal {
+  padding: 24px;
+  color: var(--text-color);
+  width: 90%;
+  max-width: 400px;
+}
+
+.confirmation-modal {
+  box-shadow: 0 0 30px rgba(255, 255, 255, 0.15);
+  animation: zoomIn 0.3s ease-out;
 }
 
 .note-editor-content {
   padding: 24px;
 }
 
-.note-editor h2 {
+/* Modal headings */
+.note-editor h2,
+.modal h3,
+.confirmation-modal h3 {
   margin-top: 0;
   margin-bottom: 16px;
   color: var(--text-color);
 }
 
-/* Input fields */
+.modal h3,
+.confirmation-modal h3 {
+  font-size: 1.4rem;
+}
+
+/* Modal paragraphs */
+.modal p,
+.confirmation-modal p {
+  margin-bottom: 20px;
+  color: var(--text-secondary-color);
+  line-height: 1.5;
+}
+
+.modal-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+}
+
+/* Input fields common styles */
+#note-title, 
+#note-description,
+#note-title-input,
+#note-description-input {
+  width: 100%;
+  color: var(--text-color);
+  font-family: inherit;
+}
+
+/* Form inputs */
 #note-title, 
 #note-description {
-  width: 100%;
   padding: 12px 16px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background-color: rgba(255, 255, 255, 0.05);
-  color: var(--text-color);
   box-sizing: border-box;
 }
 
@@ -622,7 +703,6 @@ footer {
 
 #note-description {
   margin-bottom: 20px;
-  font-family: inherit;
   font-size: 1rem;
   min-height: 150px;
   resize: vertical;
@@ -633,15 +713,6 @@ footer {
   outline: none;
   border-color: rgba(255, 255, 255, 0.3);
   box-shadow: 0 0 8px rgba(255, 255, 255, 0.1);
-}
-
-/* Editor buttons - make exactly like action buttons */
-.editor-buttons {
-  display: flex !important;
-  justify-content: flex-end !important;
-  gap: 20px !important; 
-  margin-top: 16px;
-  width: 100%;
 }
 
 /* Inline editor styling */
@@ -657,11 +728,8 @@ footer {
 
 #note-title-input,
 #note-description-input {
-  width: 100%;
   background-color: transparent;
   border: none;
-  color: var(--text-color);
-  font-family: inherit;
   padding: 0;
 }
 
@@ -674,9 +742,9 @@ footer {
   min-height: 100px;
   font-size: 1rem;
   margin-bottom: 15px;
-  resize: none; /* No manual resize */
-  height: auto; /* Allow height to adjust to content */
-  overflow-y: hidden; /* Hide scrollbars */
+  resize: none;
+  height: auto;
+  overflow-y: hidden;
 }
 
 #note-title-input:focus,
@@ -686,121 +754,60 @@ footer {
 
 /* Make the note container expand to fit content */
 .note-entry-editor .note-details {
-  max-height: none !important; /* Override any max-height constraints */
-  height: auto; /* Allow height to adjust to content */
-  overflow: visible; /* Don't clip or scroll content */
-}
-
-/* Modal styling */
-.modal,
-.confirmation-modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.7);
-  display: none;
-  justify-content: center;
-  align-items: center;
-  z-index: 100;
-}
-
-.confirmation-modal-overlay {
-  z-index: 110; /* Higher than editor */
-  background-color: rgba(0, 0, 0, 0.85);
-}
-
-.modal.active {
-  display: flex;
-  animation: fadeIn 0.2s ease-out;
-}
-
-.modal-content,
-.confirmation-modal {
-  background-color: var(--bg-color);
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
-  color: var(--text-color);
-  border: 1px solid var(--border-color);
-  width: 90%;
-}
-
-.modal-content {
-  max-width: 400px;
-}
-
-.confirmation-modal {
-  max-width: 400px;
-  background-color: var(--note-bg-color);
-  box-shadow: 0 0 30px rgba(255, 255, 255, 0.15);
-  animation: zoomIn 0.3s ease-out;
-}
-
-.modal h3,
-.confirmation-modal h3 {
-  margin-top: 0;
-  font-size: 1.4rem;
-  margin-bottom: 16px;
-  color: var(--text-color);
-}
-
-.modal p,
-.confirmation-modal p {
-  margin-bottom: 20px;
-  color: var(--text-secondary-color);
-  line-height: 1.5;
-}
-
-.modal-buttons {
-  display: flex;
-  justify-content: flex-end;
-  gap: 16px;
+  max-height: none !important;
+  height: auto;
+  overflow: visible;
 }
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .container {
-      padding: 1rem;
+    padding: 1rem;
   }
 
   header h1 {
-      font-size: 36px;
+    font-size: 36px;
   }
 }
 
 @media (max-width: 748px) {
   :root {
-    --footer-space: 60px; /* Updated to match desktop value */
+    --footer-space: 60px;
   }
   
-  /* Adjust the bottom indicator position for mobile - still maintaining space */
   .scroll-indicator-bottom {
-    bottom: var(--footer-space, 60px);
+    bottom: var(--footer-space);
     height: 30px;
   }
 
   .note-editor-content {
-      padding: 20px 16px;
+    padding: 20px 16px;
   }
   
   #note-description {
-      min-height: 120px;
+    min-height: 120px;
   }
 
   .primary-button, .secondary-button, .warning-button {
-      padding: 8px 16px;
-      font-size: 0.9rem;
+    padding: 8px 16px;
+    font-size: 0.9rem;
   }
 }
 
 @media (max-width: 480px) {
   .container {
-      padding: 10px;
+    padding: 10px;
   }
 
   header h1 {
-      font-size: 28px;
+    font-size: 28px;
+  }
+
+  .empty-state {
+    height: 50vh; /* Better position on small screens */
+  }
+  
+  .empty-state p {
+    font-size: 1.3rem; /* Slightly smaller font on mobile */
   }
 }
