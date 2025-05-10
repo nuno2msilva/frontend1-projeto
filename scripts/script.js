@@ -634,7 +634,7 @@ const NotesManager = (() => {
       const editedNote = notesArea.querySelector(`.note-entry[data-id="${id}"]`);
       
       // Now animate ALL notes that moved
-      const updatedNotesAfter = Array.from(notesArea.querySelectorAll('.note-entry:not(.note-entry-editor)`));
+      const updatedNotesAfter = Array.from(notesArea.querySelectorAll('.note-entry:not(.note-entry-editor)'));
       
       updatedNotesAfter.forEach(note => {
         const id = note.dataset.id;
