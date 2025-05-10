@@ -14,9 +14,34 @@
   --border-color: rgba(255, 255, 255, 0.1);
   --shadow-color: rgba(0, 0, 0, 0.6);
   --note-bg-color: #2d2d2d;
-  --header-height: 60px;
+  --header-height: 20px;
   --footer-space: 60px;
   --scroll-indicator-height: 40px;
+
+  /* New common values */
+  --border-radius-sm: 8px;
+  --border-radius-md: 12px;
+  --border-radius-lg: 99em;
+  --transition-default: 0.3s ease;
+  --box-shadow-hover: 0 0 15px rgba(255, 255, 255, 0.2);
+  --box-shadow-active: 0 0 20px rgba(255, 255, 255, 0.25);
+  --animation-timing-default: 1.5s ease-out; /* Updated animation duration */
+  --common-spacing: 16px;
+
+  /* Replace all instances of these gradients with this custom property */
+  --theme-gradient: linear-gradient(to right, #efefef 50%, #2a2a2a 50%) no-repeat;
+
+  /* Button background variables for dark theme */
+  --button-bg-color: #444444;
+  --button-hover-bg-color: #555555;
+  --new-note-bg-color: #3a3a3a;
+  --new-note-hover-bg-color: #4a4a4a;
+  --button-shadow: 0 1px 3px rgba(0, 0, 0, 0.2); /* Subtle shadow instead of glow */
+  --button-hover-shadow: 0 0 15px rgba(255, 255, 255, 0.2); /* Glow effect for hover only */
+
+  /* Shadow variables */
+  --shadow-light: 0 0 15px rgba(255, 255, 255, 0.2);
+  --shadow-medium: 0 0 20px rgba(255, 255, 255, 0.25);
 }
 
 :root[data-theme="light"] {
@@ -25,6 +50,20 @@
   --text-secondary-color: rgba(0, 0, 0, 0.8);
   --border-color: rgba(0, 0, 0, 0.1);
   --shadow-color: rgba(0, 0, 0, 0.2);
+  --note-bg-color: #ffffff; /* Add this missing variable */
+  --note-hover-bg: #f0f0f0; /* Add this for hover state */
+  
+  /* Update scroll indicators for light theme */
+  --scroll-indicator-light: linear-gradient(to bottom, rgba(0, 0, 0, 0.2), transparent);
+  --scroll-indicator-light-bottom: linear-gradient(to top, rgba(0, 0, 0, 0.2), transparent);
+
+  /* Button background variables for light theme */
+  --button-bg-color: #d0d0d0;
+  --button-hover-bg-color: #c0c0c0;
+  --new-note-bg-color: #e0e0e0;
+  --new-note-hover-bg-color: #d0d0d0;
+  --button-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); /* Subtle shadow for light theme */
+  --button-hover-shadow: 0 0 15px rgba(0, 0, 0, 0.1); /* Subtle glow for light theme */
 }
 
 /* Animations */
@@ -44,9 +83,9 @@
 }
 
 @keyframes even-glow {
-  0% { box-shadow: 0 0 15px rgba(255, 255, 255, 0.2); }
+  0% { box-shadow: var(--button-shadow); }
   50% { box-shadow: 0 0 25px rgba(255, 255, 255, 0.3); }
-  100% { box-shadow: 0 0 15px rgba(255, 255, 255, 0.2); }
+  100% { box-shadow: var(--button-shadow); }
 }
 
 /* Note movement animations */
@@ -76,14 +115,41 @@
   }
 }
 
-/* Add a more subtle highlight animation for single note updates */
-.note-entry.updated {
-  animation: subtle-update 0.7s ease-in-out;
+/* Enhanced styles for saved notes - copy of the completing animation */
+.note-entry.saved {
+  z-index: 100 !important;
+  position: relative;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25) !important;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  @extend .animate;
+  @extend .animate-lift;
 }
 
-@keyframes subtle-update {
-  0%, 100% { background-color: var(--background-color); }
-  50% { background-color: rgba(33, 150, 243, 0.08); }
+/* Remove the blue flash when saving edited notes */
+@keyframes save-success-flash {
+  0%, 50%, 100% { background-color: var(--note-bg-color); }
+}
+
+/* Add this specific rule for saved notes that need to move position */
+.note-entry.saved.moving {
+  z-index: 100 !important;
+  position: relative;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  will-change: transform;
+  animation: save-success-flash 1.5s ease-out !important; /* Changed from 1.2s to 1.5s */
+  transition: transform 1.5s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow var(--transition-default) !important; /* Changed from 1s to 1.5s */
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25) !important;
+}
+
+/* Note entry states have similar properties */
+.note-entry.completing,
+.note-entry.uncompleting,
+.note-entry.saved {
+  @extend .animate;
+  @extend .animate-lift;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25) !important;
 }
 
 /* Layout */
@@ -109,7 +175,7 @@ body {
   max-width: 768px;
   width: 100%;
   margin: 0 auto;
-  padding: 0 1rem;
+  padding: 1.5rem;
   box-sizing: border-box;
 }
 
@@ -123,22 +189,32 @@ header {
   z-index: 10;
   background-color: var(--bg-color);
   flex-shrink: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 1.5rem; /* Keep horizontal padding */
+  margin-bottom: 0; /* Ensure no bottom margin */
+}
+
+header h1 {
+  font-size: 36px; /* Choose your preferred size */
 }
 
 .app-title {
-  padding: 1rem 0;
+  padding: 0.5rem 1rem; /* Reduce vertical padding */
   margin: 0;
   text-align: left;
 }
 
 /* Scrollable main content area */
-#notes-area {
+main {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 16px 1rem;
+  gap: 12px; /* Slightly reduce gap between notes */
+  padding: 0 1rem; /* Remove top/bottom padding, keep horizontal */
   max-width: 768px;
   margin: 0 auto;
+  margin-top: 0; /* Ensure no top margin */
   box-sizing: border-box;
   overflow-y: auto;
   height: calc(100vh - var(--header-height) - var(--footer-space));
@@ -151,31 +227,37 @@ header {
   -ms-overflow-style: none;
 }
 
-#notes-area::-webkit-scrollbar {
+main > *:first-child {
+  margin-top: 8px; /* Small breathing room from header */
+}
+
+main::-webkit-scrollbar {
   display: none;
 }
 
-/* Scroll indicators */
+/* Scroll indicators with fixed pixel positioning */
 .scroll-indicator {
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
   width: 100%;
   max-width: 768px;
-  height: 40px;
+  height: 30px;
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.3s ease;
-  z-index: 10;
+  z-index: 2;
 }
 
+/* Top indicator - fixed pixel position */
 .scroll-indicator-top {
-  top: var(--header-height);
+  top: 60px; /* Fixed pixel value - adjust to match your header height */
   background: linear-gradient(to bottom, rgba(255, 255, 255, 0.3), transparent);
 }
 
+/* Bottom indicator - fixed pixel position */
 .scroll-indicator-bottom {
-  bottom: var(--footer-space);
+  bottom: 50px; /* Fixed pixel value - adjust to match your footer space */
   background: linear-gradient(to top, rgba(255, 255, 255, 0.3), transparent);
 }
 
@@ -189,7 +271,7 @@ footer {
   bottom: 0;
   left: 0;
   right: 0;
-  padding: 1rem;
+  padding: 0.5rem 1rem; /* Reduce padding */
   z-index: 10;
   display: flex;
   justify-content: flex-end;
@@ -201,7 +283,7 @@ footer {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  bottom: 25px;
+  bottom: 20px;
   color: var(--text-secondary-color);
   font-size: 0.85rem;
   opacity: 0.7;
@@ -221,36 +303,46 @@ footer {
   text-decoration: underline;
 }
 
-/* Common button styles */
-.primary-button, .secondary-button, .warning-button,
+/* Restore the original button styles */
 .complete-note, .reset-note, .edit-note, .delete-note, .save-note, .cancel-note,
+.primary-button, .secondary-button, .warning-button,
 #save-new-note, #cancel-new-note {
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  border: none;
-  background-color: rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-color);
+  background-color: var(--button-bg-color);
+  box-shadow: var(--button-shadow); /* Use subtle default shadow */
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.2rem;
-  transition: transform 0.2s, background-color 0.2s;
+  transition: box-shadow 0.3s ease, transform 0.2s ease, background-color 0.2s ease;
   position: relative;
   text-indent: -9999px;
   overflow: hidden;
 }
 
-/* Button hover effect */
+/* Updated hover styles - removed translateY transform */
 .primary-button:hover, .secondary-button:hover, .warning-button:hover,
 .complete-note:hover, .reset-note:hover, .edit-note:hover, 
 .delete-note:hover, .save-note:hover, .cancel-note:hover,
 #save-new-note:hover, #cancel-new-note:hover,
 #new-note:hover {
-  transform: scale(1.05);
+  background-color: var(--button-hover-bg-color);
+  box-shadow: var(--button-hover-shadow); /* Keep the shadow effect */
 }
 
-/* Button icons positioning */
+/* Updated active styles - removed transform since there's no need to reset position */
+.primary-button:active, .secondary-button:active, .warning-button:active,
+.complete-note:active, .reset-note:active, .edit-note:active, 
+.delete-note:active, .save-note:active, .cancel-note:active,
+#save-new-note:active, #cancel-new-note:active {
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.25); /* Keep active shadow */
+}
+
+/* Fix 2: Prevent emoji movement on button hover */
 .primary-button::before, .secondary-button::before, .warning-button::before,
 #save-new-note::before, #cancel-new-note::before,
 .complete-note::before, .reset-note::before, .edit-note::before,
@@ -261,6 +353,7 @@ footer {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
+  transition: none; /* This prevents emoji movement */
 }
 
 /* Button icons content */
@@ -283,28 +376,28 @@ footer {
   width: 75px;
   height: 75px;
   border-radius: 50%;
-  background-color: var(--bg-color);
+  background-color: var(--new-note-bg-color);
   color: var(--text-color);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-color);
   font-size: 38px;
   cursor: pointer;
-  transition: box-shadow 0.3s ease, transform 0.2s ease;
-  box-shadow: 0 4px 8px var(--shadow-color);
+  transition: box-shadow 0.3s ease, transform 0.2s ease, background-color 0.2s ease;
+  box-shadow: var(--button-shadow); /* Use subtle default shadow */
   margin-right: 10px;
   margin-bottom: 10px;
   padding: 0;
   line-height: 1;
   position: relative;
+  z-index: 60; /* Higher than footer but lower than modals */
 }
 
 #new-note:hover {
-  box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
-  transform: translateY(-2px);
+  background-color: var(--new-note-hover-bg-color);
+  box-shadow: var(--button-hover-shadow); /* Use hover-specific shadow */
 }
 
 #new-note:active {
   box-shadow: 0 0 20px rgba(255, 255, 255, 0.25);
-  transform: translateY(0);
 }
 
 /* Note styling */
@@ -312,7 +405,7 @@ footer {
   background-color: var(--note-bg-color);
   border-radius: 12px;
   box-shadow: 0 0 0 rgba(255, 255, 255, 0);
-  transition: box-shadow 0.3s ease, transform 0.2s ease, opacity 0.3s ease;
+  transition: var(--transition-default); /* Updated transition */
   transform-origin: center top;
   overflow: hidden;
   position: relative;
@@ -325,8 +418,7 @@ footer {
 }
 
 .note-entry:hover {
-  box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
-  transform: translateY(-2px);
+  box-shadow: var(--button-hover-shadow); /* Keep the shadow effect */
 }
 
 .note-entry.active {
@@ -343,12 +435,8 @@ footer {
 
 /* Animation classes */
 .note-entry.inserting {
-  animation: noteInsert 0.4s ease-out forwards;
-}
-
-.note-entry.deleting {
-  animation: noteDelete 0.3s ease-out forwards;
-  pointer-events: none;
+  @extend .animate;
+  @extend .animate-insert;
 }
 
 /* Common properties for animating notes */
@@ -370,20 +458,21 @@ footer {
 .note-entry.moving {
   z-index: 10;
   box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3) !important;
-  transition: transform 1s linear !important, 
-              box-shadow 0.3s ease !important;
+  transition: transform 1.5s cubic-bezier(0.2, 0.8, 0.2, 1), 
+             box-shadow var(--transition-default) !important; /* Updated transition */
   will-change: transform;
   position: relative;
 }
 
-/* Moving direction styling */
+/* Remove the green tint when completing notes */
 .note-entry.moving[data-completing="true"] {
-  background-color: rgba(76, 175, 80, 0.08);
+  background-color: var(--note-bg-color); /* Replace with normal background */
   z-index: 5;
 }
 
+/* Remove the white tint when uncompleting notes */
 .note-entry.moving[data-uncompleting="true"] {
-  background-color: rgba(255, 255, 255, 0.08);
+  background-color: var(--note-bg-color); /* Replace with normal background */
   z-index: 15;
 }
 
@@ -393,9 +482,8 @@ footer {
   z-index: 100 !important;
   position: relative;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25) !important;
-  transform-style: preserve-3d;
-  backface-visibility: hidden;
-  animation: lift-note 1s linear forwards !important;
+  @extend .animate;
+  @extend .animate-lift;
 }
 
 /* Note title */
@@ -621,9 +709,9 @@ footer {
 }
 
 /* Modal content common styles */
-.note-editor,
 .modal-content,
-.confirmation-modal {
+.confirmation-modal,
+.note-editor {
   background-color: var(--note-bg-color);
   border-radius: 12px;
   box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
@@ -631,6 +719,7 @@ footer {
   border: 1px solid var(--border-color);
 }
 
+/* Then specify only the unique properties */
 .note-editor {
   width: 90%;
   max-width: 600px;
@@ -643,11 +732,6 @@ footer {
   color: var(--text-color);
   width: 90%;
   max-width: 400px;
-}
-
-.confirmation-modal {
-  box-shadow: 0 0 30px rgba(255, 255, 255, 0.15);
-  animation: zoomIn 0.3s ease-out;
 }
 
 .note-editor-content {
@@ -765,51 +849,126 @@ footer {
   overflow: visible;
 }
 
-/* Responsive adjustments */
-@media (max-width: 768px) {
-  .container {
-    padding: 1rem;
-  }
-
-  header h1 {
-    font-size: 36px;
-  }
-
-  footer {
-    background-color: var(--bg-color); /* Match app background */
-  }
+/* For elements with the same transition pattern */
+.note-entry, .scroll-indicator, .footer-text, #new-note {
+  transition: var(--transition-default);
 }
 
-@media (max-width: 748px) {
-  :root {
-    --footer-space: 60px;
-  }
-  
-  .scroll-indicator-bottom {
-    bottom: var(--footer-space);
-    height: 30px;
-  }
-
-  .note-editor-content {
-    padding: 20px 16px;
-  }
-  
-  #note-description {
-    min-height: 120px;
-  }
-
-  .primary-button, .secondary-button, .warning-button {
-    padding: 8px 16px;
-    font-size: 0.9rem;
-  }
+/* From Uiverse.io by cuzpq */ 
+.theme-checkbox {
+  --toggle-size: 12px; /* Increased from 10px */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  width: 5em; /* Increased from 4.5em */
+  height: 2.5em; /* Increased from 2.25em */
+  background: var(--theme-gradient);
+  background-size: 205%;
+  background-position: 0;
+  -webkit-transition: 0.4s;
+  -o-transition: 0.4s;
+  transition: 0.4s;
+  border-radius: 99em;
+  position: relative;
+  cursor: pointer;
+  font-size: var(--toggle-size);
+  margin-left: auto;
+  margin-right: 1rem; /* Added right margin for inward spacing */
 }
 
-@media (max-width: 480px) {
-  .container {
-    padding: 10px;
-  }
+.theme-checkbox::before {
+  content: "";
+  width: 1.9em; /* Increased from 1.75em */
+  height: 1.9em; /* Increased from 1.75em */
+  position: absolute;
+  top: 0.3em; /* Adjusted from 0.25em */
+  left: 0.3em; /* Adjusted from 0.25em */
+  background: var(--theme-gradient);
+  background-size: 205%;
+  background-position: 100%;
+  border-radius: 50%;
+  -webkit-transition: 0.4s;
+  -o-transition: 0.4s;
+  transition: 0.4s;
+}
 
-  header h1 {
-    font-size: 28px;
-  }
+.theme-checkbox:checked::before {
+  left: calc(100% - 1.9em - 0.3em); /* Updated for new dimensions */
+  background-position: 0;
+}
+
+.theme-checkbox:checked {
+  background-position: 100%;
+}
+
+/* Add this for smooth theme transitions */
+.theme-transition {
+  transition: background-color 0.5s ease, color 0.5s ease;
+}
+
+.theme-transition * {
+  transition: background-color 0.5s ease, box-shadow 0.5s ease, 
+              color 0.5s ease, border-color 0.5s ease !important;
+}
+
+/* Hover animation */
+.animate-hover {
+  transition: transform 0.2s ease, box-shadow 0.3s ease;
+}
+
+/* Animation utility classes - add these to your CSS */
+.animate {
+  /* Base class for all animations */
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+
+.animate-fade {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.animate-slide {
+  animation: slideIn 0.3s ease-out forwards;
+}
+
+.animate-zoom {
+  animation: zoomIn 0.3s ease-out forwards;
+}
+
+.animate-lift {
+  animation: lift-note 1.5s linear forwards !important;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  z-index: 100 !important;
+  position: relative;
+}
+
+.animate-insert {
+  animation: noteInsert 1.5s ease-out forwards;
+}
+
+.animate-delete {
+  animation: noteDelete 1.5s ease-out forwards;
+}
+
+/* Transition groups - add these classes */
+.transition-default {
+  transition: var(--transition-default);
+}
+
+.transition-theme {
+  transition: background-color 0.5s ease, 
+              color 0.5s ease, 
+              box-shadow 0.5s ease, 
+              border-color 0.5s ease;
+}
+
+.transition-transform {
+  transition: transform 1.5s cubic-bezier(0.2, 0.8, 0.2, 1), 
+              box-shadow var(--transition-default) !important;
+}
+
+.transition-buttons {
+  transition: background-color 0.2s ease,
+              box-shadow 0.3s ease;
 }
