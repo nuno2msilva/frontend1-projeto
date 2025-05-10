@@ -774,6 +774,10 @@ footer {
   header h1 {
     font-size: 36px;
   }
+
+  footer {
+    background-color: var(--bg-color); /* Match app background */
+  }
 }
 
 @media (max-width: 748px) {
