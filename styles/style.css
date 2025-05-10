@@ -566,9 +566,14 @@ footer {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  height: 60vh; /* Reduced slightly for better mobile positioning */
-  padding: 0 20px; /* Add horizontal padding for small screens */
-  margin: auto 0;
+  height: auto;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  padding: 0;
+  margin: 0;
 }
 
 .empty-state p {
@@ -577,6 +582,7 @@ footer {
   margin: 0;
   font-weight: 300;
   animation: fadeIn 0.8s ease-out;
+  padding: 0 20px;
 }
 
 /* Modal and overlay common styles */
@@ -801,13 +807,5 @@ footer {
 
   header h1 {
     font-size: 28px;
-  }
-
-  .empty-state {
-    height: 50vh; /* Better position on small screens */
-  }
-  
-  .empty-state p {
-    font-size: 1.3rem; /* Slightly smaller font on mobile */
   }
 }
