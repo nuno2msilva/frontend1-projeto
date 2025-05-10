@@ -204,7 +204,8 @@ const NotesManager = (() => {
           <h3>${title}</h3>
           <p>${msg}</p>
           <div class="modal-buttons">
-            ${buttons.map(b => `<button id="${b.id}" class="${b.cls}">${b.text}</button>`).join('')}
+            ${buttons.map(b => `<button id="${b.id}" class="${b.cls}" 
+              ${b.ariaLabel ? `aria-label="${b.ariaLabel}"` : ''}>${b.text}</button>`).join('')}
           </div>
         </div>`;
       
@@ -295,6 +296,7 @@ const NotesManager = (() => {
             id: 'del-cancel',
             text: 'Cancel',
             cls: 'secondary-button',
+            ariaLabel: 'Cancel deletion',
             onClick: () => {
               modal.hide('delete-modal');
               modalState.deleteActive = false;
@@ -304,6 +306,7 @@ const NotesManager = (() => {
             id: 'del-ok',
             text: 'Delete',
             cls: 'warning-button',
+            ariaLabel: 'Confirm deletion',
             onClick: () => {
               modal.hide('delete-modal');
               setTimeout(() => {
@@ -373,9 +376,10 @@ const NotesManager = (() => {
           <div class="button-row">
             ${timestampsHTML}
             <div class="action-buttons">
-              <button class="${note.isCompleted ? 'reset-note' : 'complete-note'}"></button>
-              <button class="edit-note"></button>
-              <button class="delete-note"></button>
+              <button class="${note.isCompleted ? 'reset-note' : 'complete-note'}" 
+                aria-label="${note.isCompleted ? 'Mark as incomplete' : 'Mark as complete'}"></button>
+              <button class="edit-note" aria-label="Edit note"></button>
+              <button class="delete-note" aria-label="Delete note"></button>
             </div>
           </div>
         </div>`;
@@ -414,8 +418,8 @@ const NotesManager = (() => {
         <div class="note-details">
           <textarea id="note-description-input" placeholder="Note description...">${dom.escapeHtml(description)}</textarea>
           <div class="editor-buttons">
-            <button id="save-new-note" type="button"></button>
-            <button id="cancel-new-note" type="button"></button>
+            <button id="save-new-note" type="button" aria-label="Save note"></button>
+            <button id="cancel-new-note" type="button" aria-label="Cancel editing"></button>
           </div>
         </div>
       `;
@@ -630,7 +634,7 @@ const NotesManager = (() => {
       const editedNote = notesArea.querySelector(`.note-entry[data-id="${id}"]`);
       
       // Now animate ALL notes that moved
-      const updatedNotesAfter = Array.from(notesArea.querySelectorAll('.note-entry:not(.note-entry-editor)'));
+      const updatedNotesAfter = Array.from(notesArea.querySelectorAll('.note-entry:not(.note-entry-editor)`));
       
       updatedNotesAfter.forEach(note => {
         const id = note.dataset.id;
