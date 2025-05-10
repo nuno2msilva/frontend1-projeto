@@ -424,6 +424,25 @@ const NotesManager = (() => {
     }
   };
 
+  // Add this helper function after the dom helper methods
+  function updateEmptyState(notesArea) {
+    if (!notesArea) return;
+    
+    // Remove any existing empty state
+    const existingEmpty = notesArea.querySelector('.empty-state');
+    if (existingEmpty) {
+      existingEmpty.remove();
+    }
+    
+    // Show empty state if we have no notes and aren't currently editing
+    if (localNotesCache.length === 0 && !editorState.isActive) {
+      const emptyState = document.createElement('div');
+      emptyState.className = 'empty-state';
+      emptyState.innerHTML = '<p>No notes yet.<br>Click + to add one!</p>';
+      notesArea.appendChild(emptyState);
+    }
+  }
+
   // Unified animation system for note movements
   function animateNotePosition(note, notesArea, isCompleting) {
     if (!note || !notesArea) return;
@@ -805,6 +824,12 @@ const NotesManager = (() => {
             noteEl.remove();
             // Remove from local cache
             localNotesCache.splice(index, 1);
+            
+            // Show empty state if this was the last note
+            if (localNotesCache.length === 0) {
+              const notesArea = dom.getNotesContainer();
+              updateEmptyState(notesArea);
+            }
           }, 300);
         }
         
@@ -824,6 +849,12 @@ const NotesManager = (() => {
       dom.querySelectorAll('.note-entry.active').forEach(note => {
         note.classList.remove('active');
       });
+      
+      // Hide empty state when starting to edit
+      const emptyState = dom.getNotesContainer()?.querySelector('.empty-state');
+      if (emptyState) {
+        emptyState.remove();
+      }
       
       // Set editing mode
       editorState.isActive = true;
@@ -929,6 +960,14 @@ const NotesManager = (() => {
       }
       
       editorState.hasUnsavedChanges = false;
+      
+      // Check if we need to restore empty state after editing
+      if (localNotesCache.length === 0) {
+        const notesArea = dom.getNotesContainer();
+        if (notesArea) {
+          updateEmptyState(notesArea);
+        }
+      }
     },
     
     saveCurrentNote: async () => {
@@ -1288,7 +1327,11 @@ const NotesManager = (() => {
     notesArea.innerHTML = '';
     
     if (!localNotesCache.length) {
-      notesArea.innerHTML = '<div class="empty-state"><p>No notes yet.</p></div>';
+      notesArea.innerHTML = '';
+      // Only show empty state if we're not editing
+      if (!editorState.isActive) {
+        updateEmptyState(notesArea);
+      }
       return;
     }
     
