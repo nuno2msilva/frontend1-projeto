@@ -1,11 +1,11 @@
-/* Base styles */
+/* BASE STYLES & RESET */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
-/* Add this near the top of your CSS file */
+/* ACCESSIBILITY - REDUCED MOTION */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -25,11 +25,9 @@
   }
 }
 
-/*--------------------------------------
- * THEME VARIABLES
- *--------------------------------------*/
+/* THEME VARIABLES - LIGHT MODE (DEFAULT) */
 :root {
-  /* Light theme (default) */
+  /* Light theme colors */
   --bg-color: #f5f5f5;
   --text-color: #333;
   --text-secondary-color: rgba(0, 0, 0, 0.8);
@@ -38,11 +36,11 @@
   --note-bg-color: #ffffff;
   --note-hover-bg: #f0f0f0;
   
-  /* Scroll indicators for light theme */
+  /* Scroll indicators */
   --scroll-indicator-light: linear-gradient(to bottom, rgba(0, 0, 0, 0.2), transparent);
   --scroll-indicator-light-bottom: linear-gradient(to top, rgba(0, 0, 0, 0.2), transparent);
 
-  /* Button colors for light theme */
+  /* Button colors */
   --button-bg-color: #d0d0d0;
   --button-hover-bg-color: #c0c0c0;
   --new-note-bg-color: #e0e0e0;
@@ -63,7 +61,7 @@
   --animation-timing-default: 1.5s ease-out;
   --common-spacing: 16px;
   
-  /* Theme toggle gradient - default to dark position on right */
+  /* Theme toggle gradient */
   --theme-gradient: linear-gradient(to right, #2a2a2a 50%, #efefef 50%) no-repeat;
   
   /* Shadow system */
@@ -72,9 +70,7 @@
   --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
 }
 
-/*--------------------------------------
- * DARK THEME
- *--------------------------------------*/
+/* DARK THEME VARIABLES */
 :root[data-theme="dark"] {
   --bg-color: #1a1a1a;
   --text-color: white;
@@ -101,7 +97,7 @@
   --shadow-medium: 0 0 20px rgba(255, 255, 255, 0.25);
 }
 
-/* Animations */
+/* ANIMATIONS & KEYFRAMES */
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -123,7 +119,6 @@
   100% { box-shadow: var(--button-shadow); }
 }
 
-/* Note movement animations */
 @keyframes noteInsert {
   from { opacity: 0; transform: translateY(-20px) scale(0.95); }
   to { opacity: 1; transform: translateY(0) scale(1); }
@@ -134,23 +129,18 @@
   to { opacity: 0; transform: translateY(20px) scale(0.95); }
 }
 
-/* Lift animation keyframes */
 @keyframes lift-note {
-  0% {
-    transform: translateZ(0);
-  }
-  15% {
-    transform: translateZ(15px); /* Peak lift early in animation */
-  }
-  85% {
-    transform: translateZ(15px); /* Maintain lift for most of animation */
-  }
-  100% {
-    transform: translateZ(0);
-  }
+  0% { transform: translateZ(0); }
+  15% { transform: translateZ(15px); }
+  85% { transform: translateZ(15px); }
+  100% { transform: translateZ(0); }
 }
 
-/* Enhanced styles for saved notes - copy of the completing animation */
+@keyframes save-success-flash {
+  0%, 50%, 100% { background-color: var(--note-bg-color); }
+}
+
+/* NOTE ANIMATION STATES */
 .note-entry.saved {
   z-index: 100 !important;
   position: relative;
@@ -161,24 +151,17 @@
   animation: lift-note 1.5s linear forwards !important;
 }
 
-/* Remove the blue flash when saving edited notes */
-@keyframes save-success-flash {
-  0%, 50%, 100% { background-color: var(--note-bg-color); }
-}
-
-/* Add this specific rule for saved notes that need to move position */
 .note-entry.saved.moving {
   z-index: 100 !important;
   position: relative;
   transform-style: preserve-3d;
   backface-visibility: hidden;
   will-change: transform;
-  animation: save-success-flash 1.5s ease-out !important; /* Changed from 1.2s to 1.5s */
-  transition: transform 1.5s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow var(--transition-default) !important; /* Changed from 1s to 1.5s */
+  animation: save-success-flash 1.5s ease-out !important;
+  transition: transform 1.5s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow var(--transition-default) !important;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25) !important;
 }
 
-/* Note entry states have similar properties */
 .note-entry.completing,
 .note-entry.uncompleting,
 .note-entry.saved {
@@ -189,7 +172,7 @@
   backface-visibility: hidden;
 }
 
-/* Layout */
+/* LAYOUT COMPONENTS */
 html, body {
   height: 100%;
   margin: 0;
@@ -207,7 +190,6 @@ body {
   overflow: hidden;
 }
 
-/* Common layout components */
 .container, header, footer {
   max-width: 768px;
   width: 100%;
@@ -229,8 +211,8 @@ header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0; /* Keep horizontal padding */
-  margin-bottom: 0; /* Ensure no bottom margin */
+  padding: 0;
+  margin-bottom: 0;
   height: 60px;
 }
 
@@ -242,40 +224,37 @@ header h1 {
   padding: 0.5rem 1rem;
   margin: 0;
   text-align: left;
-  font-size: 1.2rem; /* Match note title size */
-  font-weight: 600; /* Match note title weight */
+  font-size: 1.2rem;
+  font-weight: 600;
 }
 
-/* Scrollable main content area */
 main {
   display: flex;
   flex-direction: column;
-  gap: 12px; /* Slightly reduce gap between notes */
-  padding: 0 1rem; /* Remove top/bottom padding, keep horizontal */
+  gap: 12px;
+  padding: 0 1rem;
   max-width: 768px;
   margin: 0 auto;
-  margin-top: 0; /* Ensure no top margin */
+  margin-top: 0;
   box-sizing: border-box;
   overflow-y: auto;
   height: calc(100vh - var(--header-height) - var(--footer-space));
   width: 100%;
   position: relative;
   transition: height 0.3s ease;
-  
-  /* Hide scrollbar but keep functionality */
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
 
 main > *:first-child {
-  margin-top: 8px; /* Small breathing room from header */
+  margin-top: 8px;
 }
 
 main::-webkit-scrollbar {
   display: none;
 }
 
-/* Scroll indicators with fixed pixel positioning */
+/* SCROLL INDICATORS */
 .scroll-indicator {
   position: fixed;
   left: 50%;
@@ -289,36 +268,33 @@ main::-webkit-scrollbar {
   z-index: 2;
 }
 
-/* Top indicator - fixed pixel position */
 .scroll-indicator-top {
-  top: 60px; /* Fixed pixel value - adjust to match your header height */
-  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.3), transparent);
+  top: 60px;
+  background: linear-gradient(to bottom, rgba(255, 93, 0, 0.6), transparent);
 }
 
-/* Bottom indicator - fixed pixel position */
 .scroll-indicator-bottom {
-  bottom: 50px; /* Fixed pixel value - adjust to match your footer space */
-  background: linear-gradient(to top, rgba(255, 255, 255, 0.3), transparent);
+  bottom: 50px;
+  background: linear-gradient(to top, rgba(0, 101, 255, 0.6), transparent);
 }
 
 .scroll-indicator.visible {
   opacity: 1;
 }
 
-/* Fixed footer */
+/* FOOTER */
 footer {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  padding: 0.5rem 1rem; /* Reduce padding */
+  padding: 0.5rem 1rem;
   z-index: 10;
   display: flex;
   justify-content: flex-end;
   pointer-events: none;
 }
 
-/* Footer text styling */
 .footer-text {
   position: absolute;
   left: 50%;
@@ -343,46 +319,43 @@ footer {
   text-decoration: underline;
 }
 
-/* Restore the original button styles */
+/* BUTTONS & CONTROLS */
 .complete-note, .reset-note, .edit-note, .delete-note, .save-note, .cancel-note,
 .primary-button, .secondary-button, .warning-button,
 #save-new-note, #cancel-new-note {
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   border: 1px solid var(--border-color);
   background-color: var(--button-bg-color);
-  box-shadow: var(--button-shadow); /* Use subtle default shadow */
+  box-shadow: var(--button-shadow);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   transition: box-shadow 0.3s ease, transform 0.2s ease, background-color 0.2s ease;
   position: relative;
   text-indent: -9999px;
   overflow: hidden;
 }
 
-/* Updated hover styles - removed translateY transform */
 .primary-button:hover, .secondary-button:hover, .warning-button:hover,
 .complete-note:hover, .reset-note:hover, .edit-note:hover, 
 .delete-note:hover, .save-note:hover, .cancel-note:hover,
 #save-new-note:hover, #cancel-new-note:hover,
 #new-note:hover {
   background-color: var(--button-hover-bg-color);
-  box-shadow: var(--button-hover-shadow); /* Keep the shadow effect */
+  box-shadow: var(--button-hover-shadow);
 }
 
-/* Updated active styles - removed transform since there's no need to reset position */
 .primary-button:active, .secondary-button:active, .warning-button:active,
 .complete-note:active, .reset-note:active, .edit-note:active, 
 .delete-note:active, .save-note:active, .cancel-note:active,
 #save-new-note:active, #cancel-new-note:active {
-  box-shadow: 0 0 20px rgba(255, 255, 255, 0.25); /* Keep active shadow */
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.25);
 }
 
-/* Fix 2: Prevent emoji movement on button hover */
 .primary-button::before, .secondary-button::before, .warning-button::before,
 #save-new-note::before, #cancel-new-note::before,
 .complete-note::before, .reset-note::before, .edit-note::before,
@@ -393,10 +366,10 @@ footer {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  transition: none; /* This prevents emoji movement */
+  transition: none;
 }
 
-/* Button icons content */
+/* BUTTON ICONS */
 .primary-button::before { content: "✅"; }
 .secondary-button::before { content: "↩️"; }
 .warning-button::before { content: "🗑️"; }
@@ -410,7 +383,7 @@ footer {
 #cancel-new-note::before { content: "❌"; }
 #new-note::before { content: "➕"; }
 
-/* New note button styling */
+/* NEW NOTE BUTTON */
 #new-note {
   pointer-events: auto;
   width: 75px;
@@ -422,30 +395,30 @@ footer {
   font-size: 38px;
   cursor: pointer;
   transition: box-shadow 0.3s ease, transform 0.2s ease, background-color 0.2s ease;
-  box-shadow: var(--button-shadow); /* Use subtle default shadow */
+  box-shadow: var(--button-shadow);
   margin-right: 10px;
   margin-bottom: 10px;
   padding: 0;
   line-height: 1;
   position: relative;
-  z-index: 60; /* Higher than footer but lower than modals */
+  z-index: 60;
 }
 
 #new-note:hover {
   background-color: var(--new-note-hover-bg-color);
-  box-shadow: var(--button-hover-shadow); /* Use hover-specific shadow */
+  box-shadow: var(--button-hover-shadow);
 }
 
 #new-note:active {
   box-shadow: 0 0 20px rgba(255, 255, 255, 0.25);
 }
 
-/* Note styling */
+/* NOTE STYLING */
 .note-entry {
   background-color: var(--note-bg-color);
   border-radius: 12px;
   box-shadow: 0 0 0 rgba(255, 255, 255, 0);
-  transition: var(--transition-default); /* Updated transition */
+  transition: var(--transition-default);
   transform-origin: center top;
   overflow: hidden;
   position: relative;
@@ -458,7 +431,7 @@ footer {
 }
 
 .note-entry:hover {
-  box-shadow: var(--button-hover-shadow); /* Keep the shadow effect */
+  box-shadow: var(--button-hover-shadow);
 }
 
 .note-entry.active {
@@ -473,13 +446,12 @@ footer {
   padding: 16px;
 }
 
-/* Animation classes */
+/* NOTE ANIMATION CLASSES */
 .note-entry.inserting {
   will-change: transform, opacity;
   animation: noteInsert 1.5s ease-out forwards;
 }
 
-/* Common properties for animating notes */
 .note-entry.moving,
 .note-entry.uncompleting,
 .note-entry.completing {
@@ -487,7 +459,6 @@ footer {
   box-shadow: 0 2px 6px var(--shadow-color) !important;
 }
 
-/* Animation-specific properties */
 .note-entry.uncompleting {
   z-index: 30 !important;
   position: relative;
@@ -498,25 +469,21 @@ footer {
 .note-entry.moving {
   z-index: 10;
   box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3) !important;
-  transition: transform 1.5s cubic-bezier(0.2, 0.8, 0.2, 1), 
-             box-shadow var(--transition-default) !important; /* Updated transition */
+  transition: transform 1.5s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow var(--transition-default) !important;
   will-change: transform;
   position: relative;
 }
 
-/* Remove the green tint when completing notes */
 .note-entry.moving[data-completing="true"] {
-  background-color: var(--note-bg-color); /* Replace with normal background */
+  background-color: var(--note-bg-color);
   z-index: 5;
 }
 
-/* Remove the white tint when uncompleting notes */
 .note-entry.moving[data-uncompleting="true"] {
-  background-color: var(--note-bg-color); /* Replace with normal background */
+  background-color: var(--note-bg-color);
   z-index: 15;
 }
 
-/* Enhanced styles for toggled notes */
 .note-entry.completing,
 .note-entry.uncompleting {
   z-index: 100 !important;
@@ -524,7 +491,7 @@ footer {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25) !important;
 }
 
-/* Note title */
+/* NOTE COMPONENTS */
 .note-title {
   display: flex;
   justify-content: space-between;
@@ -557,7 +524,6 @@ footer {
   font-weight: 400;
 }
 
-/* Note details */
 .note-details {
   max-height: 0;
   overflow: hidden;
@@ -575,7 +541,6 @@ footer {
   align-items: flex-start;
 }
 
-/* Special case for empty descriptions */
 .note-details p:empty::after {
   content: "No description provided.";
   color: var(--text-secondary-color);
@@ -583,7 +548,7 @@ footer {
   font-style: italic;
 }
 
-/* Timestamp styling common properties */
+/* TIMESTAMPS & INDICATORS */
 .completion-info, .edit-info {
   font-size: 0.7rem;
   padding: 2px 6px;
@@ -596,7 +561,6 @@ footer {
   white-space: nowrap;
 }
 
-/* Completion styling */
 .completion-indicator {
   width: 24px;
   height: 24px;
@@ -614,7 +578,7 @@ footer {
   flex: 1;
 }
 
-/* Completed note styling */
+/* COMPLETED NOTE STYLING */
 .note-entry.completed-note {
   opacity: 0.8;
 }
@@ -625,7 +589,7 @@ footer {
   opacity: 0.7;
 }
 
-/* Edit timestamp styling */
+/* EDIT INFO STYLING */
 .edit-info {
   color: #2196F3;
   background-color: rgba(33, 150, 243, 0.1);
@@ -633,16 +597,16 @@ footer {
   line-height: 1.2;
 }
 
-/* Container for timestamps */
+/* Adjust button row for better vertical alignment */
 .button-row > div:first-child {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   justify-content: flex-end;
-  min-height: 48px;
+  min-height: 40px;
 }
 
-/* Note action buttons */
+/* NOTE ACTION BUTTONS */
 .button-row {
   display: flex;
   justify-content: space-between;
@@ -653,15 +617,13 @@ footer {
 
 .action-buttons {
   display: flex;
-  gap: 20px;
+  gap: 12px;
 }
 
-/* Hide buttons by default */
 .complete-note, .reset-note, .edit-note, .delete-note, .save-note, .cancel-note {
   display: none;
 }
 
-/* Show buttons conditionally */
 .note-entry:not(.completed-note) .complete-note,
 .note-entry.completed-note .reset-note,
 .note-entry:not(.editing) .edit-note,
@@ -671,7 +633,7 @@ footer {
   display: flex;
 }
 
-/* Editor buttons */
+/* EDITOR BUTTONS */
 .editor-buttons {
   display: flex !important;
   justify-content: flex-end !important;
@@ -684,7 +646,7 @@ footer {
   display: flex !important;
 }
 
-/* Empty state */
+/* EMPTY STATE */
 .empty-state {
   text-align: center;
   color: var(--text-secondary-color);
@@ -711,7 +673,7 @@ footer {
   padding: 0 20px;
 }
 
-/* Modal and overlay common styles */
+/* MODALS & OVERLAYS */
 .note-editor-overlay,
 .modal,
 .confirmation-modal-overlay {
@@ -746,7 +708,7 @@ footer {
   animation: fadeIn 0.2s ease-out;
 }
 
-/* Modal content common styles */
+/* MODAL CONTENT STYLES */
 .modal-content,
 .confirmation-modal,
 .note-editor {
@@ -757,7 +719,6 @@ footer {
   border: 1px solid var(--border-color);
 }
 
-/* Then specify only the unique properties */
 .note-editor {
   width: 90%;
   max-width: 600px;
@@ -776,7 +737,6 @@ footer {
   padding: 24px;
 }
 
-/* Modal headings */
 .note-editor h2,
 .modal h3,
 .confirmation-modal h3 {
@@ -790,7 +750,6 @@ footer {
   font-size: 1.4rem;
 }
 
-/* Modal paragraphs */
 .modal p,
 .confirmation-modal p {
   margin-bottom: 20px;
@@ -804,7 +763,7 @@ footer {
   gap: 16px;
 }
 
-/* Input fields common styles */
+/* FORMS & INPUTS */
 #note-title, 
 #note-description,
 #note-title-input,
@@ -814,7 +773,6 @@ footer {
   font-family: inherit;
 }
 
-/* Form inputs */
 #note-title, 
 #note-description {
   padding: 12px 16px;
@@ -843,7 +801,7 @@ footer {
   box-shadow: 0 0 8px rgba(255, 255, 255, 0.1);
 }
 
-/* Inline editor styling */
+/* INLINE EDITOR STYLING */
 .note-entry-editor {
   animation: fadeIn 0.3s ease-out;
   box-shadow: 0 0 20px rgba(255, 255, 255, 0.25) !important;
@@ -880,26 +838,25 @@ footer {
   outline: none;
 }
 
-/* Make the note container expand to fit content */
 .note-entry-editor .note-details {
   max-height: none !important;
   height: auto;
   overflow: visible;
 }
 
-/* For elements with the same transition pattern */
+/* COMMON TRANSITIONS */
 .note-entry, .scroll-indicator, .footer-text, #new-note {
   transition: var(--transition-default);
 }
 
-/* From Uiverse.io by cuzpq */ 
+/* THEME TOGGLE */
 .theme-checkbox {
-  --toggle-size: 12px; /* Increased from 10px */
+  --toggle-size: 12px;
   -webkit-appearance: none;
   -moz-appearance: none;
   appearance: none;
-  width: 5em; /* Increased from 4.5em */
-  height: 2.5em; /* Increased from 2.25em */
+  width: 5em;
+  height: 2.5em;
   background: var(--theme-gradient);
   background-size: 205%;
   background-position: 0;
@@ -911,16 +868,16 @@ footer {
   cursor: pointer;
   font-size: var(--toggle-size);
   margin-left: auto;
-  margin-right: 1rem; /* Added right margin for inward spacing */
+  margin-right: 1rem;
 }
 
 .theme-checkbox::before {
   content: "";
-  width: 1.9em; /* Increased from 1.75em */
-  height: 1.9em; /* Increased from 1.75em */
+  width: 1.9em;
+  height: 1.9em;
   position: absolute;
-  top: 0.3em; /* Adjusted from 0.25em */
-  left: 0.3em; /* Adjusted from 0.25em */
+  top: 0.3em;
+  left: 0.3em;
   background: var(--theme-gradient);
   background-size: 205%;
   background-position: 100%;
@@ -931,7 +888,7 @@ footer {
 }
 
 .theme-checkbox:checked::before {
-  left: calc(100% - 1.9em - 0.3em); /* Updated for new dimensions */
+  left: calc(100% - 1.9em - 0.3em);
   background-position: 0;
 }
 
@@ -939,7 +896,7 @@ footer {
   background-position: 100%;
 }
 
-/* Add this for smooth theme transitions */
+/* THEME TRANSITION */
 .theme-transition {
   transition: background-color 0.5s ease, color 0.5s ease;
 }
@@ -949,14 +906,12 @@ footer {
               color 0.5s ease, border-color 0.5s ease !important;
 }
 
-/* Hover animation */
+/* UTILITY ANIMATION CLASSES */
 .animate-hover {
   transition: transform 0.2s ease, box-shadow 0.3s ease;
 }
 
-/* Animation utility classes - add these to your CSS */
 .animate {
-  /* Base class for all animations */
   will-change: transform, opacity;
   backface-visibility: hidden;
 }
@@ -989,7 +944,7 @@ footer {
   animation: noteDelete 1.5s ease-out forwards;
 }
 
-/* Transition groups - add these classes */
+/* UTILITY TRANSITION CLASSES */
 .transition-default {
   transition: var(--transition-default);
 }
@@ -1011,7 +966,7 @@ footer {
               box-shadow 0.3s ease;
 }
 
-/* Add this to your CSS file */
+/* MARKDOWN STYLING */
 .markdown-content {
   line-height: 1.6;
 }

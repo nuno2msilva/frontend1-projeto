@@ -1,158 +1,26 @@
-class NoteCounter extends HTMLElement {
-  constructor() {
-    super();
-    this.attachShadow({ mode: 'open' });
-  }
-
-  connectedCallback() {
-    this.render();
-    window.addEventListener('notes-updated', () => this.updateCount());
-    this.updateCount();
-  }
-
-  updateCount() {
-    const data = window.getNotesData ? window.getNotesData() : {total: 0, completed: 0};
-    this.shadowRoot.querySelector('.counter').textContent = `(${data.completed}/${data.total})`;
-  }
-
-  render() {
-    this.shadowRoot.innerHTML = `
-      <style>
-        :host {
-          display: inline-block;
-          margin-left: 10px;
-          font-size: 0.8em;
-          opacity: 0.8;
-        }
-      </style>
-      <span class="counter">(0/0)</span>
-    `;
-  }
-}
-
-customElements.define('note-counter', NoteCounter);
+// Notes Application - Main Script for managing note creation, editing, display, and synchronization
+import { canvas } from './canvas.js';
+import { loadMarkedJS, parseMarkdown } from './markdown.js';
+import { NoteCounter } from './noteCounter.js';
+import { setupThemeToggle } from './theme.js';
+import { api } from './api.js';
+import { time } from './time.js';
+import { modal } from './modal.js';
+import { dom } from './dom.js';
+import { syncManager } from './sync.js';
+import { ANIMATION, animateNotePosition, scrollElementIntoView, cubicBezier, animateNoteMovement, captureNotePositions} from './animation.js';
 
 const NotesManager = (() => {
-  const API_URL = 'https://67f5684b913986b16fa476f9.mockapi.io/api/onion/NoteTaking';
+  // Constants for localStorage keys
   const STORAGE = { INIT: 'notesAppInitialized', VISIT: 'hasVisitedBefore' };
 
-  // Add this function at the top of your module
-  function showToast(message, type = 'info') {
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    
-    setTimeout(() => {
-      toast.classList.add('show');
-    }, 10);
-    
-    setTimeout(() => {
-      toast.classList.remove('show');
-      setTimeout(() => toast.remove(), 300);
-    }, 3000);
-  }
-
-  /**
-   * Dynamically loads the Marked.js library
-   * @returns {Promise} Resolves when script is loaded
-   */
-  function loadMarkedJS() {
-    return new Promise((resolve, reject) => {
-      // Check if already loaded
-      if (window.marked) {
-        resolve(window.marked);
-        return;
-      }
-      
-      console.log('Loading Marked.js dynamically');
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/marked/marked.min.js';
-      script.async = true;
-      
-      script.onload = () => {
-        console.log('Marked.js loaded successfully');
-        resolve(window.marked);
-      };
-      
-      script.onerror = () => {
-        const error = new Error('Failed to load Marked.js');
-        console.error(error);
-        reject(error);
-      };
-      
-      document.head.appendChild(script);
-    });
-  }
-
-  /**
-   * Parses markdown text to HTML
-   * @param {string} text - Markdown text to parse
-   * @returns {Promise<string>} - Parsed HTML
-   */
-  async function parseMarkdown(text) {
-    if (!text) return 'No description provided.';
-    
-    try {
-      // Ensure library is loaded
-      await loadMarkedJS();
-      
-      // Now we can safely use marked
-      return marked.parse(text);
-    } catch (error) {
-      console.error('Error parsing markdown:', error);
-      return text; // Fallback to plain text
-    }
-  }
-
-  // Updated setupThemeToggle function
-  function setupThemeToggle() {
-    const themeToggle = document.querySelector('.theme-checkbox');
-    if (!themeToggle) return;
-    
-    // Set initial state based on saved preference or system preference
-    const savedTheme = localStorage.getItem('theme');
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    
-    // If theme was saved before, use it
-    if (savedTheme) {
-      document.documentElement.setAttribute('data-theme', savedTheme);
-      themeToggle.checked = savedTheme === 'dark'; // Checked = dark now
-    } else {
-      // Otherwise use system preference (default to light)
-      const initialTheme = prefersDark ? 'dark' : 'light';
-      document.documentElement.setAttribute('data-theme', initialTheme);
-      themeToggle.checked = initialTheme === 'dark'; // Checked = dark now
-    }
-    
-    // Handle toggle changes (checked now means dark theme)
-    themeToggle.addEventListener('change', function() {
-      const newTheme = this.checked ? 'dark' : 'light'; // Reversed from original
-      document.documentElement.setAttribute('data-theme', newTheme);
-      localStorage.setItem('theme', newTheme);
-      
-      // Update theme-color meta tag
-      const themeColorMeta = document.querySelector('meta[name="theme-color"]:not([media])');
-      if (themeColorMeta) {
-        themeColorMeta.setAttribute('content', 
-          newTheme === 'dark' ? '#1a1a1a' : '#f5f5f5'
-        );
-      }
-      
-      // Add class for smooth transition
-      document.body.classList.add('theme-transition');
-      setTimeout(() => {
-        document.body.classList.remove('theme-transition');
-      }, 1000);
-    });
-  }
-
-  // State variables
+  // Modal dialog state tracking
   let modalState = {
     deleteActive: false,
     changesActive: false
   };
 
+  // State for the note editor component
   let editorState = {
     isActive: false,
     noteId: null,
@@ -161,526 +29,23 @@ const NotesManager = (() => {
     cachedDescription: ''
   };
 
-  // Add a local notes cache at the top of the module
+  // Local cache of notes data to reduce API calls
   let localNotesCache = [];
 
-  // Add at the top of the NotesManager module
+  // Synchronization state variables
   let pendingOperations = [];
   let syncInProgress = false;
   let syncTimer = null;
 
-  // Replace the current syncManager implementation with this:
-  const syncManager = {
-    // Track last full sync time
-    lastFullSyncTime: Date.now(),
-    pendingSyncTimeout: null,
-    
-    addOperation: function (type, id, data) {
-      pendingOperations.push({ type, id, data, timestamp: Date.now() });
+  // Event handler references for proper cleanup
+  let beforeUnloadHandler;
+  let noteCounterUpdateHandler;
+  let noteClickHandler;
+  let scrollHandler;
+  let topObserver;
+  let bottomObserver;
 
-      // Clear any existing pending sync timeout
-      if (this.pendingSyncTimeout) {
-        clearTimeout(this.pendingSyncTimeout);
-      }
-      
-      // Set a new timeout for 5 seconds after operation
-      this.pendingSyncTimeout = setTimeout(() => {
-        this.fullSync();
-      }, 5000);
-
-      // Update status indicator
-      this.updateSyncStatus();
-    },
-    
-    // Full sync: process outgoing changes AND pull server changes
-    fullSync: async function() {
-      console.log("Running full sync...");
-      
-      // Process any pending outgoing operations first
-      if (pendingOperations.length > 0) {
-        try {
-          await this.processQueue();
-        } catch (error) {
-          console.error("Error processing outgoing changes:", error);
-        }
-      }
-      
-      // Then pull fresh data from server
-      try {
-        console.log("Pulling updates from server...");
-        const serverNotes = await api.getNotes();
-        
-        // Only update if there are differences
-        if (this.hasChangesFromServer(serverNotes)) {
-          // Update local cache with server data
-          localNotesCache = serverNotes;
-          localNotesCache.forEach(note => time.normalizeNote(note));
-          
-          // Update the UI
-          await displayNotes(false);
-          console.log("UI updated with server changes");
-        } else {
-          console.log("No changes from server detected");
-        }
-      } catch (error) {
-        console.error("Error pulling updates from server:", error);
-      }
-      
-      // Update last sync time
-      this.lastFullSyncTime = Date.now();
-      this.updateSyncStatus();
-    },
-    
-    // Check if server has changes we don't have locally
-    hasChangesFromServer: function(serverNotes) {
-      if (serverNotes.length !== localNotesCache.length) return true;
-      
-      // Simple comparison - checks if any notes differ
-      const serverIds = serverNotes.map(note => note.id).sort();
-      const localIds = localNotesCache.map(note => note.id).sort();
-      
-      // If IDs don't match, something changed
-      if (JSON.stringify(serverIds) !== JSON.stringify(localIds)) return true;
-      
-      // Check if any note contents changed
-      for (const serverNote of serverNotes) {
-        const localNote = localNotesCache.find(note => note.id === serverNote.id);
-        if (!localNote) return true;
-        
-        // Compare important fields
-        if (serverNote.title !== localNote.title ||
-            serverNote.description !== localNote.description ||
-            serverNote.isCompleted !== localNote.isCompleted) {
-          return true;
-        }
-      }
-      
-      return false;
-    },
-
-    // Process outgoing operations queue (existing code with minor updates)
-    processQueue: async function () {
-      if (syncInProgress || pendingOperations.length === 0) return;
-
-      syncInProgress = true;
-
-      try {
-        // Get the oldest operation
-        const operation = pendingOperations.shift();
-
-        switch (operation.type) {
-          case 'create':
-            await api.createNote(operation.data);
-            break;
-          case 'update':
-            await api.updateNote(operation.id, operation.data);
-            break;
-          case 'delete':
-            await api.deleteNote(operation.id);
-            break;
-        }
-
-        console.log(`Synced ${operation.type} operation for note ${operation.id}`);
-      } catch (error) {
-        console.error('Sync failed:', error);
-        // Put operation back in queue to try again
-        if (pendingOperations.length > 0) {
-          pendingOperations.unshift(operation);
-        }
-      } finally {
-        syncInProgress = false;
-        
-        // If more operations remain, continue processing
-        if (pendingOperations.length > 0) {
-          setTimeout(() => this.processQueue(), 100);
-        }
-        
-        // Update status indicator
-        this.updateSyncStatus();
-      }
-    },
-
-    // Start the 30-second background sync
-    startPeriodicSync: function() {
-      // Clear any existing sync timer
-      if (syncTimer) {
-        clearInterval(syncTimer);
-        syncTimer = null;
-      }
-      
-      // Create new timer for 30 second intervals
-      syncTimer = setInterval(() => this.fullSync(), 30000);
-      console.log("Started periodic 30-second sync");
-    },
-
-    hasPendingOperations: function () {
-      return pendingOperations.length > 0 || syncInProgress;
-    },
-
-    updateSyncStatus: function () {
-      const statusEl = document.querySelector('.sync-status');
-      if (!statusEl) return;
-
-      if (this.hasPendingOperations()) {
-        statusEl.textContent = `Syncing ${pendingOperations.length} changes...`;
-        statusEl.classList.add('syncing');
-      } else {
-        statusEl.textContent = 'All changes saved';
-        statusEl.classList.remove('syncing');
-
-        // Hide after 2 seconds
-        setTimeout(() => {
-          if (statusEl.textContent === 'All changes saved') {
-            statusEl.textContent = '';
-          }
-        }, 2000);
-      }
-    },
-
-    // Emergency sync remains the same
-    emergencySync: async function() { /* Same as before */ }
-  };
-
-  // Add animation constants
-  const ANIMATION = {
-    DURATION: 1500,    // 1.5 seconds for all animations
-    EASING: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
-    CLEANUP_DELAY: 1600,  // Duration + 100ms buffer
-    INSERT_DURATION: 500,
-    DELETE_DURATION: 300
-  };
-
-  // API helpers
-  const api = {
-    getNotes: async () => {
-      try {
-        const response = await fetch(API_URL);
-        if (!response.ok) throw new Error('Failed to fetch notes');
-        return await response.json();
-      } catch (error) {
-        console.error('Error fetching notes:', error);
-        return []; // Return empty array on error
-      }
-    },
-
-    createNote: async (note) => {
-      try {
-        const response = await fetch(API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(note)
-        });
-        if (!response.ok) throw new Error('Failed to create note');
-        return await response.json();
-      } catch (error) {
-        console.error('Error creating note:', error);
-        showToast('Failed to create note', 'error');
-        return null;
-      }
-    },
-
-    updateNote: async (id, note) => {
-      try {
-        const response = await fetch(`${API_URL}/${id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(note)
-        });
-        if (!response.ok) throw new Error('Failed to update note');
-        return await response.json();
-      } catch (error) {
-        console.error('Error updating note:', error);
-        
-        // Try emergency sync immediately when an update fails
-        setTimeout(async () => {
-          await syncManager.emergencySync();
-        }, 1000);
-        
-        return null;
-      }
-    },
-
-    deleteNote: async (id) => {
-      try {
-        const response = await fetch(`${API_URL}/${id}`, {
-          method: 'DELETE'
-        });
-        if (!response.ok) throw new Error('Failed to delete note');
-        return true;
-      } catch (error) {
-        console.error('Error deleting note:', error);
-        showToast('Failed to delete note', 'error');
-        return false;
-      }
-    }
-  };
-
-  // Time helpers
-  const time = {
-    makeTimestamp: date => ({
-      date: date.toLocaleDateString('en-GB'),
-      time: date.toLocaleTimeString('en-GB', { hour12: false }),
-      timestamp: date.getTime()
-    }),
-    now: () => new Date(),
-
-    // New helper to normalize timestamps from API
-    normalizeNote: (note) => {
-      // If timestamps are missing, create them from the ID or current time
-      if (!note.date || !note.time) {
-        const timestamp = note.timestamp || parseInt(note.id.replace(/\D/g, '')) || Date.now();
-        const date = new Date(timestamp);
-
-        note.date = date.toLocaleDateString('en-GB');
-        note.time = date.toLocaleTimeString('en-GB', { hour12: false });
-        note.timestamp = date.getTime();
-      }
-      return note;
-    },
-    generateId: () => `note_${Date.now()}`
-  };
-
-  // Modal handling
-  const modal = {
-    create: (id, { title, msg, buttons }) => {
-      let m = document.getElementById(id);
-
-      // Create if doesn't exist, or reset if it does
-      if (!m) {
-        m = document.createElement('div');
-        m.id = id;
-        m.className = 'modal';
-        document.body.appendChild(m);
-      }
-
-      // Always update content
-      m.innerHTML = `
-        <div class="modal-content">
-          <h3>${title}</h3>
-          <p>${msg}</p>
-          <div class="modal-buttons">
-            ${buttons.map(b => `<button id="${b.id}" class="${b.cls}" 
-              ${b.ariaLabel ? `aria-label="${b.ariaLabel}"` : ''}>${b.text}</button>`).join('')}
-          </div>
-        </div>`;
-
-      // Always attach fresh event listeners
-      buttons.forEach(b => {
-        const btnEl = m.querySelector('#' + b.id);
-        if (btnEl) {
-          // Remove old listeners first (clean slate)
-          const newBtn = btnEl.cloneNode(true);
-          btnEl.parentNode.replaceChild(newBtn, btnEl);
-          newBtn.addEventListener('click', b.onClick);
-        }
-      });
-
-      return m;
-    },
-    show: (id) => { 
-      const modal = document.getElementById(id);
-      if (modal) {
-        modal.classList.add('active');
-      } else {
-        console.error(`Modal with id "${id}" not found`);
-      }
-    },
-    hide: id => document.getElementById(id).classList.remove('active'),
-
-    showUnsaved: (id, onSave, onDiscard) => {
-      if (modalState.changesActive) return;
-      modalState.changesActive = true;
-
-      modal.create('unsaved-modal', {
-        title: 'Unsaved Changes',
-        msg: 'Save changes before leaving?',
-        buttons: [
-          {
-            id: 'unsave-cancel',
-            text: 'Cancel',
-            cls: 'secondary-button',
-            onClick: (e) => {
-              // Prevent default event behavior
-              e.preventDefault();
-
-              modal.hide('unsaved-modal');
-              modalState.changesActive = false;
-              setTimeout(onDiscard, 0);
-            }
-          },
-          {
-            id: 'unsave-ok',
-            text: 'Save',
-            cls: 'primary-button',
-            onClick: async (e) => {
-              // Prevent default event behavior
-              e.preventDefault();
-
-              if (editorState.cachedTitle) {
-                try {
-                  modal.hide('unsaved-modal'); // Hide modal first
-                  modalState.changesActive = false; // Reset modal state
-
-                  if (id) {
-                    await notes.update(id, editorState.cachedTitle, editorState.cachedDescription);
-                  } else {
-                    await notes.create(editorState.cachedTitle, editorState.cachedDescription);
-                  }
-                  editorState.hasUnsavedChanges = false;
-                  editor.stopEditing();
-                } catch (error) {
-                  console.error('Error saving note:', error);
-                  showToast('Failed to save note', 'error');
-                  editorState.hasUnsavedChanges = false;
-                  editor.stopEditing();
-                }
-              } else {
-                modal.hide('unsaved-modal');
-                modalState.changesActive = false;
-                editorState.hasUnsavedChanges = false;
-                editor.stopEditing();
-              }
-            }
-          }
-        ]
-      });
-      modal.show('unsaved-modal');
-    },
-
-    showDeleteConfirm: (id, onConfirm) => {
-      if (modalState.deleteActive) return;
-      modalState.deleteActive = true;
-
-      modal.create('delete-modal', {
-        title: 'Delete Note?',
-        msg: 'Are you sure? This cannot be undone.',
-        buttons: [
-          {
-            id: 'del-cancel',
-            text: 'Cancel',
-            cls: 'secondary-button',
-            ariaLabel: 'Cancel deletion',
-            onClick: () => {
-              modal.hide('delete-modal');
-              modalState.deleteActive = false;
-            }
-          },
-          {
-            id: 'del-ok',
-            text: 'Delete',
-            cls: 'warning-button',
-            ariaLabel: 'Confirm deletion',
-            onClick: () => {
-              modal.hide('delete-modal');
-              setTimeout(() => {
-                modalState.deleteActive = false;
-                onConfirm();
-              }, 50);
-            }
-          }
-        ]
-      });
-      modal.show('delete-modal');
-    }
-  };
-
-  // DOM helpers
-  const dom = {
-    getElement: id => document.getElementById(id),
-    getNotesContainer: () => document.querySelector('main'),
-    querySelector: selector => document.querySelector(selector),
-    querySelectorAll: selector => document.querySelectorAll(selector),
-
-    escapeHtml: text => {
-      if (!text) return '';
-      return text
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-    },
-
-    createNoteElement: async function(note) {
-      // Create the element structure
-      const el = document.createElement('div');
-      el.className = `note-entry${note.isCompleted ? ' completed-note' : ''}`;
-      el.dataset.id = note.id;
-      
-      // Parse markdown content (with our new function)
-      const parsedContent = await parseMarkdown(note.description);
-      
-      el.innerHTML = `
-        <div class="note-title">
-          <div class="title-container">
-            <h2>${note.title}</h2>
-            <p>🗓️ ${note.date} @ ${note.time}</p>
-          </div>
-          ${note.isCompleted ? '<canvas class="completion-indicator" width="24" height="24"></canvas>' : ''}
-        </div>
-        <div class="note-details">
-          <div class="markdown-content">
-            ${parsedContent}
-          </div>
-          <div class="button-row">
-            <div>
-              ${note.lastEdited ? `<div class="edit-info">✏️ ${note.lastEdited.date} @ ${note.lastEdited.time}</div>` : ''}
-              ${note.isCompleted && note.completedAt ? `<div class="completion-info">✅ ${note.completedAt.date} @ ${note.completedAt.time}</div>` : ''}
-            </div>
-            <div class="action-buttons">
-              <button class="${note.isCompleted ? 'reset-note' : 'complete-note'}" 
-                aria-label="${note.isCompleted ? 'Mark as incomplete' : 'Mark as complete'}"></button>
-              <button class="edit-note" aria-label="Edit note"></button>
-              <button class="delete-note" aria-label="Delete note"></button>
-            </div>
-          </div>
-        </div>`;
-
-      // Draw completion indicator (keep your existing code)
-      if (note.isCompleted) {
-        const canvas = el.querySelector('canvas');
-        const ctx = canvas.getContext('2d');
-        ctx.beginPath();
-        ctx.arc(12, 12, 11, 0, 2 * Math.PI);
-        ctx.fillStyle = 'rgba(76,175,80,0.2)';
-        ctx.fill();
-        ctx.beginPath();
-        ctx.moveTo(6, 12);
-        ctx.lineTo(11, 17);
-        ctx.lineTo(18, 8);
-        ctx.strokeStyle = '#4CAF50';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      }
-
-      return el;
-    },
-
-    createEditorElement: (noteId, title = '', description = '') => {
-      const editorNote = document.createElement('div');
-      editorNote.className = 'note-entry note-entry-editor active';
-      editorNote.dataset.id = noteId || 'new-note-editor';
-
-      editorNote.innerHTML = `
-        <div class="note-title editor-title">
-          <div class="title-container">
-            <input type="text" id="note-title-input" placeholder="Note title" autocomplete="off" value="${dom.escapeHtml(title)}">
-          </div>
-        </div>
-        <div class="note-details">
-          <textarea id="note-description-input" placeholder="Note description...">${dom.escapeHtml(description)}</textarea>
-          <div class="editor-buttons">
-            <button id="save-new-note" type="button" aria-label="Save note"></button>
-            <button id="cancel-new-note" type="button" aria-label="Cancel editing"></button>
-          </div>
-        </div>
-      `;
-
-      return editorNote;
-    }
-  };
-
-  // Add this helper function after the dom helper methods
+  // Updates or creates the empty state message when no notes exist
   function updateEmptyState(notesArea) {
     if (!notesArea) return;
 
@@ -699,95 +64,7 @@ const NotesManager = (() => {
     }
   }
 
-  // Unified animation system for note movements
-  function animateNotePosition(note, notesArea, isCompleting) {
-    if (!note || !notesArea) return;
-
-    // Calculate scroll target based on note position - always center it
-    const noteRect = note.getBoundingClientRect();
-    const containerRect = notesArea.getBoundingClientRect();
-    const viewportCenter = containerRect.height / 2;
-    const noteCenter = noteRect.top + (noteRect.height / 2) - containerRect.top;
-    const targetScroll = notesArea.scrollTop + (noteCenter - viewportCenter);
-
-    // Initial position
-    const startPosition = notesArea.scrollTop;
-    const totalScrollNeeded = targetScroll - startPosition;
-
-    // NEW: Don't animate if scroll distance is too small (less than 10px)
-    if (Math.abs(totalScrollNeeded) < 10) {
-      return;
-    }
-
-    // Match exactly with CSS transition speed (1s)
-    const startTime = performance.now();
-    const duration = 1000; // Match with the note animation (1s)
-
-    // Cancel any existing animations
-    if (window.scrollAnimation) {
-      cancelAnimationFrame(window.scrollAnimation);
-    }
-
-    // Use LINEAR timing for consistent speed with no acceleration/deceleration
-    function step(timestamp) {
-      const elapsed = timestamp - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-
-      // Linear timing - replace cubic-bezier with simple linear animation
-      notesArea.scrollTop = startPosition + (totalScrollNeeded * progress);
-
-      if (progress < 1) {
-        window.scrollAnimation = requestAnimationFrame(step);
-      }
-    }
-
-    // Start animation
-    window.scrollAnimation = requestAnimationFrame(step);
-  }
-
-  // Also update scrollElementIntoView for consistent behavior
-  function scrollElementIntoView(element, container, additionalOffset = 0, centerElement = false) {
-    if (!element || !container) return;
-
-    // Get the bounding rectangles
-    const elementRect = element.getBoundingClientRect();
-    const containerRect = container.getBoundingClientRect();
-
-    // Calculate the scroll target
-    let targetScroll;
-
-    if (centerElement) {
-      // Center the element in the container
-      const elementCenter = elementRect.top + (elementRect.height / 2);
-      const containerCenter = containerRect.top + (containerRect.height / 2);
-      targetScroll = container.scrollTop + (elementCenter - containerCenter);
-
-      // NEW: Don't scroll if element is already within 10px of center
-      if (Math.abs(elementCenter - containerCenter) < 10) {
-        return;
-      }
-    } else {
-      // Just make sure element is visible
-      if (elementRect.top < containerRect.top) {
-        // Element is above viewport
-        targetScroll = container.scrollTop - (containerRect.top - elementRect.top) - additionalOffset;
-      } else if (elementRect.bottom > containerRect.bottom) {
-        // Element is below viewport
-        targetScroll = container.scrollTop + (elementRect.bottom - containerRect.bottom) + additionalOffset;
-      } else {
-        // Already visible
-        return;
-      }
-    }
-
-    // Perform the scroll with smooth animation
-    container.scrollTo({
-      top: targetScroll,
-      behavior: 'smooth'
-    });
-  }
-
-  // Add this function around line 863
+  // Sets up auto-resizing for the note description textarea
   function setupAutoResizeTextarea() {
     const textarea = dom.getElement('note-description-input');
     if (!textarea) return;
@@ -803,97 +80,9 @@ const NotesManager = (() => {
     });
   }
 
-  // Add this cubic-bezier helper function to your code
-  function cubicBezier(p0, p1, p2, p3, t) {
-    const term1 = 3 * p1 * t * (1 - t) * (1 - t);
-    const term2 = 3 * p2 * t * t * (1 - t);
-    const term3 = p3 * t * t * t;
-    return term1 + term2 + term3;
-  }
-
-  // Add this function to your code (near other utility functions)
-  function animateNoteMovement(note, oldPosition, options = {}) {
-    // Default options
-    const defaults = {
-      duration: 1500,  // Match the 1.5s animation time from toggleCompletion
-      easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
-      rotation: -0.5,  // Slight rotation for visual interest
-      addRotation: true
-    };
-    
-    const settings = {...defaults, ...options};
-    const newPosition = note.getBoundingClientRect();
-    
-    // Calculate movement - if too small, use minimum movement
-    const deltaY = Math.abs(oldPosition.top - newPosition.top) > 5 
-      ? oldPosition.top - newPosition.top
-      : 40; // Minimum movement for visibility
-    
-    // Add relevant classes
-    note.classList.add('moving');
-    note.style.willChange = 'transform';
-    
-    // Start at old position
-    note.style.transform = `translateY(${deltaY}px)`;
-    note.style.transition = 'none';
-    
-    // Force reflow
-    note.offsetHeight;
-    
-    // Animate to new position
-    requestAnimationFrame(() => {
-      note.style.transition = `transform ${settings.duration/1000}s ${settings.easing}`;
-      note.style.transform = '';
-      
-      // Add rotation if specified
-      if (settings.addRotation) {
-        note.animate([
-          { transform: `translateY(${deltaY}px) rotate(${settings.rotation}deg)` },
-          { transform: 'translateY(0) rotate(0deg)' }
-        ], {
-          duration: settings.duration,
-          easing: settings.easing,
-          fill: 'forwards'
-        });
-      }
-    });
-    
-    // Clean up
-    setTimeout(() => {
-      note.style.willChange = 'auto';
-      note.classList.remove('moving', 'saved');
-    }, ANIMATION.CLEANUP_DELAY);
-    
-    return deltaY;
-  }
-
-  // Add this function to capture positions before DOM changes
-  function captureNotePositions(selector = '.note-entry:not(.note-entry-editor)', collectSize = false) {
-    const positions = {};
-    const notes = Array.from(document.querySelectorAll(selector));
-    
-    notes.forEach(note => {
-      const noteId = note.dataset.id;
-      if (noteId) {
-        const rect = note.getBoundingClientRect();
-        positions[noteId] = {
-          top: rect.top,
-          left: rect.left
-        };
-        
-        // Only collect size if needed
-        if (collectSize) {
-          positions[noteId].width = rect.width;
-          positions[noteId].height = rect.height;
-        }
-      }
-    });
-    
-    return positions;
-  }
-
-  // Note operations
+  // Core note management functionality
   const notes = {
+    // Creates a new note and adds it to the local cache
     create: async (title, description = '') => {
       const note = {
         id: time.generateId(),
@@ -923,6 +112,7 @@ const NotesManager = (() => {
       return note;
     },
 
+    // Updates an existing note with new content
     update: async (id, title, description = '', skipAnimation = false) => {
       // Find note in local cache
       const index = localNotesCache.findIndex(n => n.id === id);
@@ -931,7 +121,7 @@ const NotesManager = (() => {
       // Get notes container reference BEFORE making changes
       const notesArea = dom.getNotesContainer();
 
-      // Store current note positions BEFORE any changes
+      // Store current note positions BEFORE any changes for animation
       const positions = {};
       const updatedNotes = Array.from(notesArea.querySelectorAll('.note-entry:not(.note-entry-editor)'));
       updatedNotes.forEach(note => {
@@ -959,7 +149,7 @@ const NotesManager = (() => {
       // Update model & sort
       localNotesCache[index] = updatedNote;
 
-      // Sort the notes
+      // Sort the notes by completion status and then by timestamp
       localNotesCache.sort((a, b) => {
         if (a.isCompleted !== b.isCompleted) {
           return a.isCompleted ? 1 : -1;
@@ -995,20 +185,20 @@ const NotesManager = (() => {
             if (noteId === id) {
               // EDITED NOTE - Copy reset note animation exactly
               note.classList.add('saved');
-              
+
               // Start at old position
               note.style.transform = `translateY(${deltaY}px)`;
               note.style.transition = 'none';
               note.classList.add('moving');
-              
+
               // Force browser to recognize the transform before animating
               note.offsetHeight;
-              
+
               // Animate to new position - EXACT SAME as toggleCompletion
               requestAnimationFrame(() => {
-                note.style.transition = `transform ${ANIMATION.DURATION/1000}s ${ANIMATION.EASING}`;
+                note.style.transition = `transform ${ANIMATION.DURATION / 1000}s ${ANIMATION.EASING}`;
                 note.style.transform = '';
-                
+
                 // Add rotation just like in reset animation
                 note.animate([
                   { transform: `translateY(${deltaY}px) rotate(-0.5deg)` },
@@ -1019,13 +209,13 @@ const NotesManager = (() => {
                   fill: 'forwards'
                 });
               });
-              
+
               // Clean up with same timing as toggleCompletion
               setTimeout(() => {
                 note.style.willChange = 'auto';
                 note.classList.remove('moving', 'saved');
               }, ANIMATION.CLEANUP_DELAY);
-            } 
+            }
             else {
               // OTHER NOTES - use regular animation
               note.style.transform = `translateY(${deltaY}px)`;
@@ -1033,16 +223,16 @@ const NotesManager = (() => {
               note.classList.add('moving');
               note.style.willChange = 'transform';
               note.offsetHeight;
-              
+
               requestAnimationFrame(() => {
-                note.style.transition = `transform ${ANIMATION.DURATION/1000}s ${ANIMATION.EASING}`;
+                note.style.transition = `transform ${ANIMATION.DURATION / 1000}s ${ANIMATION.EASING}`;
                 note.style.transform = '';
               });
-              
+
               setTimeout(() => {
                 note.style.willChange = 'auto';
               }, ANIMATION.CLEANUP_DELAY);
-              
+
               setTimeout(() => {
                 note.classList.remove('moving', 'editing');
               }, ANIMATION.CLEANUP_DELAY);
@@ -1063,6 +253,7 @@ const NotesManager = (() => {
       return updatedNote;
     },
 
+    // Toggles the completion status of a note
     toggleCompletion: async (id) => {
       // Find note in local cache
       const index = localNotesCache.findIndex(n => n.id === id);
@@ -1147,7 +338,7 @@ const NotesManager = (() => {
 
           // Animate to new position - sync with scroll animation duration
           requestAnimationFrame(() => {
-            note.style.transition = `transform ${ANIMATION.DURATION/1000}s ${ANIMATION.EASING}`;
+            note.style.transition = `transform ${ANIMATION.DURATION / 1000}s ${ANIMATION.EASING}`;
             note.style.transform = '';
 
             // For the target note, add some subtle rotation for emphasis
@@ -1186,6 +377,7 @@ const NotesManager = (() => {
       dispatchNotesUpdatedEvent();
     },
 
+    // Deletes a note after user confirmation
     delete: async (id) => {
       modal.showDeleteConfirm(id, async () => {
         // This will only run if the user confirms deletion
@@ -1210,7 +402,7 @@ const NotesManager = (() => {
               const notesArea = dom.getNotesContainer();
               updateEmptyState(notesArea);
             }
-            
+
             // Fire the event AFTER the note is removed from the cache
             dispatchNotesUpdatedEvent();
           }, ANIMATION.DELETE_DURATION);
@@ -1222,8 +414,9 @@ const NotesManager = (() => {
     }
   };
 
-  // Editor operations
+  // Note editor component with all editing functionality
   const editor = {
+    // Starts editing an existing note or creates a new one
     startEditing: async (noteId = null) => {
       // Don't show another editor if one is already open
       if (editorState.isActive) return;
@@ -1303,6 +496,7 @@ const NotesManager = (() => {
       }
     },
 
+    // Stops editing and returns to normal view
     stopEditing: () => {
       const editorEl = dom.querySelector('.note-entry-editor');
       const noteId = editorState.noteId; // Save ID before resetting state
@@ -1353,6 +547,7 @@ const NotesManager = (() => {
       }
     },
 
+    // Saves the current note being edited
     saveCurrentNote: async () => {
       const titleInput = dom.getElement('note-title-input');
       const descInput = dom.getElement('note-description-input');
@@ -1417,24 +612,24 @@ const NotesManager = (() => {
           const updatedNoteElement = document.querySelector(`.note-entry[data-id="${savedNoteId}"]`);
           if (updatedNoteElement) {
             const oldPos = positions[savedNoteId];
-            
+
             if (oldPos) {
               // Animate note movement
               animateNoteMovement(updatedNoteElement, oldPos, {
                 duration: ANIMATION.DURATION,  // Use constant instead of 1000
                 rotation: -0.5
               });
-              
+
               // Scroll to top
               const notesArea = dom.getNotesContainer();
               requestAnimationFrame(() => {
                 notesArea.scrollTop = 0;
-                
+
                 // Then add smooth scroll for visual effect
                 setTimeout(() => {
-                  notesArea.scrollTo({ 
-                    top: 0, 
-                    behavior: 'smooth' 
+                  notesArea.scrollTo({
+                    top: 0,
+                    behavior: 'smooth'
                   });
                 }, 50);
               });
@@ -1453,10 +648,10 @@ const NotesManager = (() => {
 
       } catch (error) {
         console.error('Error saving note:', error);
-        showToast('Failed to save note', 'error');
       }
     },
 
+    // Shows confirmation for discarding unsaved changes
     confirmUnsavedChanges: async () => {
       // Cache input values before showing modal
       const titleInput = dom.getElement('note-title-input');
@@ -1515,6 +710,7 @@ const NotesManager = (() => {
       );
     },
 
+    // Sets up event listeners for the editor
     setupListeners: () => {
       const titleInput = dom.getElement('note-title-input');
       const descInput = dom.getElement('note-description-input');
@@ -1578,6 +774,7 @@ const NotesManager = (() => {
       });
     },
 
+    // Prevents editor from collapsing when interacting with it
     preventCollapse: () => {
       // Protect the entire editor note from click events that might close it
       const editorEl = dom.querySelector('.note-entry-editor');
@@ -1602,6 +799,7 @@ const NotesManager = (() => {
       }
     },
 
+    // Handles clicks outside the editor (for closing)
     handleOutsideClick: e => {
       // Don't close when clicking in the editor or its children
       if (e.target.closest('.note-entry-editor') || e.target.closest('#new-note')) {
@@ -1700,7 +898,7 @@ const NotesManager = (() => {
     }
   }
 
-  // Display functions
+  // Displays and updates notes in the DOM
   async function displayNotes(forceRefresh = false) {
     const notesArea = dom.getNotesContainer();
     if (!notesArea) return;
@@ -1726,7 +924,7 @@ const NotesManager = (() => {
       } catch (error) {
         notesArea.innerHTML = '<div class="error-state"><p>Failed to load notes.</p></div>';
         console.error('Error displaying notes:', error);
-        showToast('Failed to load notes', 'error');
+        console.error('Failed to load notes');        
         return;
       }
     }
@@ -1770,13 +968,13 @@ const NotesManager = (() => {
     for (const note of localNotesCache) {
       try {
         const noteEl = await dom.createNoteElement(note); // Wait for the element
-        
+
         // Only add animation class for NEW notes
         if (!currentNoteIds.includes(note.id)) {
           noteEl.classList.add('inserting');
           setTimeout(() => noteEl.classList.remove('inserting'), ANIMATION.INSERT_DURATION);
         }
-        
+
         notesArea.appendChild(noteEl); // Now appending actual element
       } catch (err) {
         console.error("Error creating note element:", err);
@@ -1791,7 +989,7 @@ const NotesManager = (() => {
     dispatchNotesUpdatedEvent();
   }
 
-  // Scroll indicator functions
+  // Updates visibility of scroll indicators based on scroll position
   function updateScrollIndicators(el) {
     // Get indicators
     const topIndicator = document.querySelector('.scroll-indicator-top');
@@ -1810,9 +1008,7 @@ const NotesManager = (() => {
     bottomIndicator.classList.toggle('visible', canScrollDown);
   }
 
-  // Add these optimization techniques
-
-  // 1. Debounce window resize events
+  // Debounce function to limit frequency of function calls
   function debounce(func, wait = 100) {
     let timeout;
     return function (...args) {
@@ -1822,13 +1018,15 @@ const NotesManager = (() => {
   }
 
   // Apply debounce to resize handlers
-  window.addEventListener('resize', debounce(updateLayoutVariables));
-  window.addEventListener('resize', debounce(() => {
+  const debouncedLayoutUpdate = debounce(updateLayoutVariables);
+  const debouncedScrollUpdate = debounce(() => {
     const notesArea = dom.getNotesContainer();
     if (notesArea) updateScrollIndicators(notesArea);
-  }));
+  });
+  window.addEventListener('resize', debouncedLayoutUpdate);
+  window.addEventListener('resize', debouncedScrollUpdate);
 
-  // 2. Use IntersectionObserver for better scroll indicators
+  // Sets up scroll indicators using IntersectionObserver for better performance
   function setupScrollIndicators(notesArea) {
     const topIndicator = document.querySelector('.scroll-indicator-top');
     const bottomIndicator = document.querySelector('.scroll-indicator-bottom');
@@ -1845,22 +1043,19 @@ const NotesManager = (() => {
     notesArea.prepend(topSentinel);
     notesArea.append(bottomSentinel);
 
-    // Create observers
-    const topObserver = new IntersectionObserver(
+    // Create observers - assign to module-level variables
+    topObserver = new IntersectionObserver(
       ([entry]) => topIndicator.classList.toggle('visible', !entry.isIntersecting),
       { threshold: 0 }
     );
 
-    const bottomObserver = new IntersectionObserver(
+    bottomObserver = new IntersectionObserver(
       ([entry]) => bottomIndicator.classList.toggle('visible', !entry.isIntersecting),
       { threshold: 0 }
     );
-
-    topObserver.observe(topSentinel);
-    bottomObserver.observe(bottomSentinel);
   }
 
-  // Add this to your initialization code (likely in bootstrap function)
+  // Creates and sets up the new note button
   function initNewNoteButton() {
     const footer = document.querySelector('footer');
 
@@ -1886,21 +1081,20 @@ const NotesManager = (() => {
     });
   }
 
-  // Add this function to your NotesManager module
+  // Dispatches a custom event when notes are updated
   function dispatchNotesUpdatedEvent() {
     window.dispatchEvent(new CustomEvent('notes-updated'));
   }
 
-  // Add this inside the NotesManager IIFE, near the end before the "return" statement:
-  // Make the notes cache accessible to the counter component
-  window.getNotesData = function() {
+  // Makes the notes cache accessible to the counter component
+  window.getNotesData = function () {
     return {
       total: localNotesCache.length,
       completed: localNotesCache.filter(note => note.isCompleted).length
     };
   };
 
-  // Bootstrap
+  // Initializes app with example data if first visit
   async function bootstrap() {
     if (localStorage.getItem(STORAGE.INIT)) return;
 
@@ -1941,13 +1135,13 @@ const NotesManager = (() => {
     localStorage.setItem(STORAGE.INIT, 'true');
   }
 
-  // Event handlers
+  // Sets up event handlers for notes and UI interactions
   async function setupEvents() {
     const notesArea = dom.getNotesContainer();
     if (!notesArea) return;
 
     // Handle note clicks (expand/collapse)
-    notesArea.addEventListener('click', async e => {
+    noteClickHandler = async function(e) {
       if (modalState.changesActive || editorState.isActive) return;
 
       const noteEl = e.target.closest('.note-entry');
@@ -2000,7 +1194,8 @@ const NotesManager = (() => {
           });
         }, 100);
       }
-    });
+    };
+    notesArea.addEventListener('click', noteClickHandler);
 
     // New note button click
     const newNoteBtn = dom.getElement('new-note');
@@ -2051,9 +1246,10 @@ const NotesManager = (() => {
       updateScrollIndicators(notesArea);
 
       // Monitor scrolling
-      notesArea.addEventListener('scroll', () => {
+      scrollHandler = function() {
         updateScrollIndicators(notesArea);
-      }, { passive: true });
+      };
+      notesArea.addEventListener('scroll', scrollHandler, { passive: true });
 
       // Update on window resize too
       window.addEventListener('resize', () => {
@@ -2065,7 +1261,7 @@ const NotesManager = (() => {
     }
   }
 
-  // Update layout variables
+  // Updates CSS variables based on header and footer dimensions
   function updateLayoutVariables() {
     const header = document.querySelector('header');
     const footer = document.querySelector('footer');
@@ -2081,55 +1277,52 @@ const NotesManager = (() => {
     }
   }
 
-  // Enhanced destroy function - add to your code
+  // Cleans up event listeners and resources
   function destroy() {
     // Remove document-level listeners
     document.removeEventListener('click', editor.handleOutsideClick, true);
-    
+
     // Remove window listeners
     window.removeEventListener('resize', updateLayoutVariables);
-    window.removeEventListener('resize', debounce(updateLayoutVariables));
-    window.removeEventListener('resize', debounce(() => {
-      const notesArea = dom.getNotesContainer();
-      if (notesArea) updateScrollIndicators(notesArea);
-    }));
+    window.removeEventListener('resize', debouncedLayoutUpdate);
+    window.removeEventListener('resize', debouncedScrollUpdate);
     window.removeEventListener('beforeunload', beforeUnloadHandler);
     window.removeEventListener('notes-updated', noteCounterUpdateHandler);
-    
+
     // Remove notes area listeners
     const notesArea = dom.getNotesContainer();
     if (notesArea) {
       notesArea.removeEventListener('click', noteClickHandler);
       notesArea.removeEventListener('scroll', scrollHandler);
     }
-    
+
     // Clean up IntersectionObservers
     if (topObserver) topObserver.disconnect();
     if (bottomObserver) bottomObserver.disconnect();
-    
+
     // Clear timers
     if (syncTimer) {
       clearInterval(syncTimer);
       syncTimer = null;
     }
-    
+
     if (syncManager.pendingSyncTimeout) {
       clearTimeout(syncManager.pendingSyncTimeout);
       syncManager.pendingSyncTimeout = null;
     }
-    
+
     // Clear any animation frames
     if (window.scrollAnimation) {
       cancelAnimationFrame(window.scrollAnimation);
     }
-    
+
     // Remove all note counter elements
     document.querySelectorAll('note-counter').forEach(counter => {
       counter.remove();
     });
   }
 
-  // Initialize the app when DOM is ready
+  // Initialize the app when DOM content is loaded
   document.addEventListener('DOMContentLoaded', async () => {
     await bootstrap();
 
@@ -2157,8 +1350,8 @@ const NotesManager = (() => {
     setupThemeToggle();
   });
 
-  // Update the beforeunload handler to check for pending operations
-  window.addEventListener('beforeunload', function (e) {
+  // Handler for beforeunload event to warn about unsaved changes
+  beforeUnloadHandler = function(e) {
     // Check for unsaved editor changes OR pending operations
     if ((editorState.isActive && editorState.hasUnsavedChanges) ||
       syncManager.hasPendingOperations()) {
@@ -2170,9 +1363,19 @@ const NotesManager = (() => {
       e.returnValue = confirmationMessage;
       return confirmationMessage;
     }
-  });
+  };
+  window.addEventListener('beforeunload', beforeUnloadHandler);
 
-  // Public API
+  // Handler for updating note counters when notes change
+  noteCounterUpdateHandler = function() {
+    const counters = document.querySelectorAll('note-counter');
+    counters.forEach(counter => {
+      if (counter.updateCount) counter.updateCount();
+    });
+  };
+  window.addEventListener('notes-updated', noteCounterUpdateHandler);
+
+  // Public API exposed by the NotesManager module
   return {
     createNote: notes.create,
     updateNote: notes.update,
@@ -2180,10 +1383,18 @@ const NotesManager = (() => {
     deleteNote: notes.delete,
     showUnsaved: modal.showUnsaved,
     showInlineNoteEditor: editor.startEditing,
-    destroy
+    destroy,
+    displayNotes,
+    pendingOperations,
+    syncInProgress,
+    syncTimer,
+    localNotesCache,
+    modalState,
+    editorState  
   };
 })();
 
+// Make NotesManager accessible globally
 window.NotesManager = NotesManager;
 
 // Register service worker for PWA functionality
@@ -2192,11 +1403,11 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./scripts/service-worker.js', {
       scope: '/' // Important: Set scope to root to control entire site
     })
-    .then(registration => {
-      console.log('Service Worker registered with scope:', registration.scope);
-    })
-    .catch(error => {
-      console.error('Service Worker registration failed:', error);
-    });
+      .then(registration => {
+        console.log('Service Worker registered with scope:', registration.scope);
+      })
+      .catch(error => {
+        console.error('Service Worker registration failed:', error);
+      });
   });
 }

@@ -1,18 +1,27 @@
-// Version of the cache
+// Service worker for offline capabilities and progressive web app functionality
 const CACHE_NAME = 'notes-app-v1';
 
-// Files to cache
+// List of assets that should be available offline
 const filesToCache = [
   './',
   './index.html',
   './styles/style.css',
   './scripts/script.js',
-  // Add other resources that should be available offline
+  './scripts/api.js',
+  './scripts/dom.js',
+  './scripts/animation.js',
+  './scripts/modal.js',
+  './scripts/time.js',
+  './scripts/markdown.js',
+  './scripts/canvas.js',
+  './scripts/sync.js',
+  './scripts/noteCounter.js',
+  './scripts/theme.js',
   './icons/icon-192x192.png',
   './icons/icon-512x512.png'
 ];
 
-// Install service worker
+// Install event - cache essential assets when service worker is installed
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
@@ -22,7 +31,7 @@ self.addEventListener('install', event => {
   );
 });
 
-// Fetch event - serve from cache if available
+// Fetch event - serve from cache first, fallback to network and update cache
 self.addEventListener('fetch', event => {
   event.respondWith(
     caches.match(event.request)
@@ -35,15 +44,15 @@ self.addEventListener('fetch', event => {
         // Otherwise fetch from network
         return fetch(event.request)
           .then(response => {
-            // Check if we received a valid response
+            // Skip caching non-successful or non-basic responses
             if (!response || response.status !== 200 || response.type !== 'basic') {
               return response;
             }
 
-            // Clone the response
+            // Clone the response since it can only be consumed once
             const responseToCache = response.clone();
 
-            // Add to cache for future use
+            // Add successful network responses to the cache for future use
             caches.open(CACHE_NAME)
               .then(cache => {
                 cache.put(event.request, responseToCache);
@@ -55,7 +64,7 @@ self.addEventListener('fetch', event => {
   );
 });
 
-// Clean up old caches
+// Activate event - clean up old cache versions when service worker is updated
 self.addEventListener('activate', event => {
   const cacheWhitelist = [CACHE_NAME];
   
