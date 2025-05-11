@@ -1,18 +1,31 @@
+// Improved NoteCounter web component
 class NoteCounter extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
+    // Store bound method reference for proper event listener removal
+    this._boundUpdateCount = this.updateCount.bind(this);
   }
 
   connectedCallback() {
     this.render();
-    window.addEventListener('notes-updated', () => this.updateCount());
+    // Add event listener with proper reference for removal later
+    document.addEventListener('notes-updated', this._boundUpdateCount);
     this.updateCount();
   }
 
+  disconnectedCallback() {
+    // Clean up event listener when component is removed
+    document.removeEventListener('notes-updated', this._boundUpdateCount);
+  }
+
   updateCount() {
+    // Access note data through the global accessor function
     const data = window.getNotesData ? window.getNotesData() : {total: 0, completed: 0};
-    this.shadowRoot.querySelector('.counter').textContent = `(${data.completed}/${data.total})`;
+    const counter = this.shadowRoot.querySelector('.counter');
+    if (counter) {
+      counter.textContent = `(${data.completed}/${data.total})`;
+    }
   }
 
   render() {
@@ -28,13 +41,49 @@ class NoteCounter extends HTMLElement {
       <span class="counter">(0/0)</span>
     `;
   }
+
+  attributeChangedCallback(name, oldValue, newValue) {
+    if (name === 'show-percentage' && oldValue !== newValue) {
+      this.render(); // Re-render when attributes change
+    }
+  }
+
+  static get observedAttributes() {
+    return ['show-percentage'];
+  }
 }
 
+// Define the custom element
 customElements.define('note-counter', NoteCounter);
 
 const NotesManager = (() => {
   const API_URL = 'https://67f5684b913986b16fa476f9.mockapi.io/api/onion/NoteTaking';
   const STORAGE = { INIT: 'notesAppInitialized', VISIT: 'hasVisitedBefore' };
+
+  // Add IndexedDB for better offline support
+  const DB_NAME = 'notes_db';
+  const DB_VERSION = 1;
+  const STORE_NAME = 'notes';
+
+  async function setupIndexedDB() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, DB_VERSION);
+      
+      request.onerror = reject;
+      
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+        }
+      };
+      
+      request.onsuccess = (event) => {
+        const db = event.target.result;
+        resolve(db);
+      };
+    });
+  }
 
   // Add this function at the top of your module
   function showToast(message, type = 'info') {
@@ -108,6 +157,17 @@ const NotesManager = (() => {
   let syncInProgress = false;
   let syncTimer = null;
 
+  // Add memoization for markdown parsing
+  const markdownCache = new Map();
+
+  function parseMarkdown(text) {
+    if (!text) return 'No description provided.';
+    if (!markdownCache.has(text)) {
+      markdownCache.set(text, marked.parse(text));
+    }
+    return markdownCache.get(text);
+  }
+
   // Replace the current syncManager implementation with this:
   const syncManager = {
     // Track last full sync time
@@ -168,6 +228,9 @@ const NotesManager = (() => {
       // Update last sync time
       this.lastFullSyncTime = Date.now();
       this.updateSyncStatus();
+
+      // Sync with IndexedDB
+      await this.syncWithIndexedDB();
     },
     
     // Check if server has changes we don't have locally
@@ -277,7 +340,23 @@ const NotesManager = (() => {
     },
 
     // Emergency sync remains the same
-    emergencySync: async function() { /* Same as before */ }
+    emergencySync: async function() { /* Same as before */ },
+
+    // Sync with IndexedDB
+    syncWithIndexedDB: async function() {
+      try {
+        const db = await setupIndexedDB();
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        
+        // Store all notes in IndexedDB
+        localNotesCache.forEach(note => {
+          store.put(note);
+        });
+      } catch (error) {
+        console.error('IndexedDB sync failed:', error);
+      }
+    }
   };
 
   // Add animation constants
@@ -566,7 +645,7 @@ const NotesManager = (() => {
         </div>
         <div class="note-details">
           <div class="markdown-content">
-            ${marked.parse(note.description || 'No description provided.')}
+            ${parseMarkdown(note.description)}
           </div>
           <div class="button-row">
             ${timestampsHTML}
@@ -680,12 +759,12 @@ const NotesManager = (() => {
       notesArea.scrollTop = startPosition + (totalScrollNeeded * progress);
 
       if (progress < 1) {
-        window.scrollAnimation = requestAnimationFrame(step);
+        window.scrollAnimation = trackAnimationFrame(requestAnimationFrame(step));
       }
     }
 
     // Start animation
-    window.scrollAnimation = requestAnimationFrame(step);
+    window.scrollAnimation = trackAnimationFrame(requestAnimationFrame(step));
   }
 
   // Also update scrollElementIntoView for consistent behavior
@@ -833,6 +912,71 @@ const NotesManager = (() => {
     });
     
     return positions;
+  }
+
+  // Add better keyboard navigation
+  function setupKeyboardNavigation() {
+    const notesArea = dom.getNotesContainer();
+    if (!notesArea) return;
+    
+    notesArea.setAttribute('role', 'list');
+    notesArea.tabIndex = 0;
+    
+    notesArea.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const notes = Array.from(notesArea.querySelectorAll('.note-entry:not(.note-entry-editor)'));
+        if (!notes.length) return;
+        
+        const activeIndex = notes.findIndex(note => note === document.activeElement);
+        const newIndex = e.key === 'ArrowDown' ? 
+          (activeIndex < notes.length - 1 ? activeIndex + 1 : 0) : 
+          (activeIndex > 0 ? activeIndex - 1 : notes.length - 1);
+          
+        notes[newIndex].focus();
+      }
+    });
+  }
+
+  // Add touch gestures for mobile
+  function setupTouchGestures() {
+    const notesArea = dom.getNotesContainer();
+    if (!notesArea) return;
+    
+    let touchStartX = 0;
+    let touchStartY = 0;
+    
+    notesArea.addEventListener('touchstart', (e) => {
+      touchStartX = e.changedTouches[0].screenX;
+      touchStartY = e.changedTouches[0].screenY;
+    }, { passive: true });
+    
+    notesArea.addEventListener('touchend', (e) => {
+      const touchEndX = e.changedTouches[0].screenX;
+      const touchEndY = e.changedTouches[0].screenY;
+      const deltaX = touchEndX - touchStartX;
+      const deltaY = touchEndY - touchStartY;
+      
+      // Ignore vertical swipes
+      if (Math.abs(deltaY) > Math.abs(deltaX) * 2) return;
+      
+      // Require minimum swipe distance
+      if (Math.abs(deltaX) < 50) return;
+      
+      const noteEl = e.target.closest('.note-entry');
+      if (!noteEl) return;
+      
+      const noteId = noteEl.dataset.id;
+      
+      // Right swipe - mark complete/incomplete
+      if (deltaX > 0) {
+        notes.toggleCompletion(noteId);
+      }
+      // Left swipe - edit
+      else {
+        editor.startEditing(noteId);
+      }
+    }, { passive: true });
   }
 
   // Note operations
@@ -1827,17 +1971,80 @@ const NotesManager = (() => {
 
   // Add this function to your NotesManager module
   function dispatchNotesUpdatedEvent() {
-    window.dispatchEvent(new CustomEvent('notes-updated'));
+    // Use document instead of window for more reliable event handling
+    document.dispatchEvent(new CustomEvent('notes-updated'));
   }
 
-  // Add this inside the NotesManager IIFE, near the end before the "return" statement:
-  // Make the notes cache accessible to the counter component
+  // Add this inside the NotesManager IIFE before the return statement
   window.getNotesData = function() {
     return {
       total: localNotesCache.length,
       completed: localNotesCache.filter(note => note.isCompleted).length
     };
   };
+
+  // Add this to your NotesManager IIFE
+  function setupSearch() {
+    const header = document.querySelector('header');
+    if (!header) return;
+    
+    // Create search container
+    const searchContainer = document.createElement('div');
+    searchContainer.className = 'search-container';
+    
+    // Create search input
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.placeholder = 'Search notes...';
+    searchInput.className = 'search-input';
+    
+    // Add to container
+    searchContainer.appendChild(searchInput);
+    header.appendChild(searchContainer);
+    
+    // Set up search functionality
+    let searchTimeout;
+    searchInput.addEventListener('input', () => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        const searchTerm = searchInput.value.trim().toLowerCase();
+        filterNotes(searchTerm);
+      }, 300);
+    });
+  }
+
+  // Filter notes based on search term
+  function filterNotes(term) {
+    if (!term) {
+      displayNotes(false);
+      return;
+    }
+    
+    const filteredNotes = localNotesCache.filter(note => 
+      note.title.toLowerCase().includes(term) || 
+      note.description.toLowerCase().includes(term)
+    );
+    
+    const notesArea = dom.getNotesContainer();
+    if (!notesArea) return;
+    
+    // Clear the notes area
+    notesArea.innerHTML = '';
+    
+    if (filteredNotes.length === 0) {
+      const emptySearch = document.createElement('div');
+      emptySearch.className = 'empty-state';
+      emptySearch.innerHTML = `<p>No results found for "${term}"</p>`;
+      notesArea.appendChild(emptySearch);
+      return;
+    }
+    
+    // Display filtered notes
+    filteredNotes.forEach(note => {
+      const noteEl = dom.createNoteElement(note);
+      notesArea.appendChild(noteEl);
+    });
+  }
 
   // Bootstrap
   async function bootstrap() {
@@ -2002,6 +2209,12 @@ const NotesManager = (() => {
       // Setup IntersectionObserver-based scroll indicators
       setupScrollIndicators(notesArea);
     }
+
+    // Setup keyboard navigation
+    setupKeyboardNavigation();
+
+    // Setup touch gestures for mobile
+    setupTouchGestures();
   }
 
   // Update layout variables
@@ -2033,18 +2246,23 @@ const NotesManager = (() => {
       if (notesArea) updateScrollIndicators(notesArea);
     }));
     window.removeEventListener('beforeunload', beforeUnloadHandler);
-    window.removeEventListener('notes-updated', noteCounterUpdateHandler);
     
     // Remove notes area listeners
     const notesArea = dom.getNotesContainer();
     if (notesArea) {
-      notesArea.removeEventListener('click', noteClickHandler);
-      notesArea.removeEventListener('scroll', scrollHandler);
+      const notesAreaClicks = notesArea.getEventListeners?.('click') || [];
+      const notesAreaScrolls = notesArea.getEventListeners?.('scroll') || [];
+      notesAreaClicks.forEach(listener => notesArea.removeEventListener('click', listener));
+      notesAreaScrolls.forEach(listener => notesArea.removeEventListener('scroll', listener));
     }
     
     // Clean up IntersectionObservers
-    if (topObserver) topObserver.disconnect();
-    if (bottomObserver) bottomObserver.disconnect();
+    const observers = document.querySelectorAll('.scroll-sentinel');
+    observers.forEach(sentinel => {
+      if (sentinel._observer) {
+        sentinel._observer.disconnect();
+      }
+    });
     
     // Clear timers
     if (syncTimer) {
@@ -2058,14 +2276,21 @@ const NotesManager = (() => {
     }
     
     // Clear any animation frames
-    if (window.scrollAnimation) {
-      cancelAnimationFrame(window.scrollAnimation);
-    }
+    const animationIdsToCancel = window._trackedAnimationFrames || [];
+    animationIdsToCancel.forEach(id => cancelAnimationFrame(id));
+    window._trackedAnimationFrames = [];
     
     // Remove all note counter elements
     document.querySelectorAll('note-counter').forEach(counter => {
       counter.remove();
     });
+  }
+
+  // Track animation frames
+  function trackAnimationFrame(id) {
+    if (!window._trackedAnimationFrames) window._trackedAnimationFrames = [];
+    window._trackedAnimationFrames.push(id);
+    return id;
   }
 
   // Initialize the app when DOM is ready
@@ -2094,6 +2319,7 @@ const NotesManager = (() => {
     syncManager.startPeriodicSync();
 
     setupThemeToggle();
+    setupSearch();
   });
 
   // Update the beforeunload handler to check for pending operations
@@ -2113,13 +2339,10 @@ const NotesManager = (() => {
 
   // Public API
   return {
+    bootstrap,
+    displayNotes,
     createNote: notes.create,
-    updateNote: notes.update,
-    toggleCompletion: notes.toggleCompletion,
-    deleteNote: notes.delete,
-    showUnsaved: modal.showUnsaved,
-    showInlineNoteEditor: editor.startEditing,
-    destroy
+    // ...other methods
   };
 })();
 
@@ -2137,3 +2360,34 @@ if ('serviceWorker' in navigator) {
       });
   });
 }
+
+// Add this at the end of your code
+const perfMonitor = {
+  marks: {},
+  
+  start: function(id) {
+    this.marks[id] = performance.now();
+  },
+  
+  end: function(id) {
+    if (!this.marks[id]) return;
+    const duration = performance.now() - this.marks[id];
+    console.log(`[Performance] ${id}: ${duration.toFixed(2)}ms`);
+    delete this.marks[id];
+  },
+  
+  measure: function(id, callback) {
+    this.start(id);
+    const result = callback();
+    this.end(id);
+    return result;
+  }
+};
+
+// Usage example - correctly referencing functions
+perfMonitor.start('appInitialization');
+document.addEventListener('DOMContentLoaded', async () => {
+  await NotesManager.bootstrap();
+  await NotesManager.displayNotes();
+  perfMonitor.end('appInitialization');
+});
