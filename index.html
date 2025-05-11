@@ -7,6 +7,11 @@
     <meta name="description"
         content="A modern, responsive notes app for capturing and organizing your thoughts. Create, edit, and manage notes with real-time syncing across devices.">
     <link rel="manifest" href="./manifest.json">
+    <!-- Dark theme color -->
+    <meta name="theme-color" content="#1a1a1a" media="(prefers-color-scheme: dark)">
+    <!-- Light theme color -->
+    <meta name="theme-color" content="#f5f5f5" media="(prefers-color-scheme: light)">
+    <!-- Default theme color (without media query) -->
     <meta name="theme-color" content="#1a1a1a">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
@@ -17,17 +22,21 @@
 </head>
 
 <body>
+
     <header>
-<h1 class="app-title">NotoGuto <note-counter></note-counter></h1>
+        <h1 class="app-title">NotoGuto <note-counter></note-counter></h1>
         <input type="checkbox" class="theme-checkbox">
     </header>
+
     <main>
+        <!--Notes load here-->
     </main>
+
     <footer>
-          <div class="footer-text">© 2025 Notes App</div>
+        <div class="footer-text">© 2025 Notes App</div>
     </footer>
     <script type="module" src="scripts/script.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
 </body>
 
 </html>

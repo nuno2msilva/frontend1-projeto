@@ -53,6 +53,58 @@ const NotesManager = (() => {
     }, 3000);
   }
 
+  /**
+   * Dynamically loads the Marked.js library
+   * @returns {Promise} Resolves when script is loaded
+   */
+  function loadMarkedJS() {
+    return new Promise((resolve, reject) => {
+      // Check if already loaded
+      if (window.marked) {
+        resolve(window.marked);
+        return;
+      }
+      
+      console.log('Loading Marked.js dynamically');
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/marked/marked.min.js';
+      script.async = true;
+      
+      script.onload = () => {
+        console.log('Marked.js loaded successfully');
+        resolve(window.marked);
+      };
+      
+      script.onerror = () => {
+        const error = new Error('Failed to load Marked.js');
+        console.error(error);
+        reject(error);
+      };
+      
+      document.head.appendChild(script);
+    });
+  }
+
+  /**
+   * Parses markdown text to HTML
+   * @param {string} text - Markdown text to parse
+   * @returns {Promise<string>} - Parsed HTML
+   */
+  async function parseMarkdown(text) {
+    if (!text) return 'No description provided.';
+    
+    try {
+      // Ensure library is loaded
+      await loadMarkedJS();
+      
+      // Now we can safely use marked
+      return marked.parse(text);
+    } catch (error) {
+      console.error('Error parsing markdown:', error);
+      return text; // Fallback to plain text
+    }
+  }
+
   // Updated setupThemeToggle function
   function setupThemeToggle() {
     const themeToggle = document.querySelector('.theme-checkbox');
@@ -78,6 +130,14 @@ const NotesManager = (() => {
       const newTheme = this.checked ? 'light' : 'dark';
       document.documentElement.setAttribute('data-theme', newTheme);
       localStorage.setItem('theme', newTheme);
+      
+      // Update theme-color meta tag
+      const themeColorMeta = document.querySelector('meta[name="theme-color"]:not([media])');
+      if (themeColorMeta) {
+        themeColorMeta.setAttribute('content', 
+          newTheme === 'dark' ? '#1a1a1a' : '#f5f5f5'
+        );
+      }
       
       // Add class for smooth transition
       document.body.classList.add('theme-transition');
@@ -541,22 +601,15 @@ const NotesManager = (() => {
         .replace(/'/g, "&#039;");
     },
 
-    createNoteElement: note => {
+    createNoteElement: async function(note) {
+      // Create the element structure
       const el = document.createElement('div');
       el.className = `note-entry${note.isCompleted ? ' completed-note' : ''}`;
       el.dataset.id = note.id;
-
-      // Prepare the timestamps section (keep your existing code)
-      let timestampsHTML = '<div>';
-      if (note.lastEdited) {
-        timestampsHTML += `<div class="edit-info">✏️ ${note.lastEdited.date} @ ${note.lastEdited.time}</div>`;
-      }
-      if (note.isCompleted && note.completedAt) {
-        timestampsHTML += `<div class="completion-info">✅ ${note.completedAt.date} @ ${note.completedAt.time}</div>`;
-      }
-      timestampsHTML += '</div>';
-
-      // Keep your existing HTML structure but apply Markdown to the content
+      
+      // Parse markdown content (with our new function)
+      const parsedContent = await parseMarkdown(note.description);
+      
       el.innerHTML = `
         <div class="note-title">
           <div class="title-container">
@@ -567,10 +620,13 @@ const NotesManager = (() => {
         </div>
         <div class="note-details">
           <div class="markdown-content">
-            ${marked.parse(note.description || 'No description provided.')}
+            ${parsedContent}
           </div>
           <div class="button-row">
-            ${timestampsHTML}
+            <div>
+              ${note.lastEdited ? `<div class="edit-info">✏️ ${note.lastEdited.date} @ ${note.lastEdited.time}</div>` : ''}
+              ${note.isCompleted && note.completedAt ? `<div class="completion-info">✅ ${note.completedAt.date} @ ${note.completedAt.time}</div>` : ''}
+            </div>
             <div class="action-buttons">
               <button class="${note.isCompleted ? 'reset-note' : 'complete-note'}" 
                 aria-label="${note.isCompleted ? 'Mark as incomplete' : 'Mark as complete'}"></button>
@@ -1710,18 +1766,22 @@ const NotesManager = (() => {
       return;
     }
 
-    // Add notes - but track which are new vs existing
-    localNotesCache.forEach(note => {
-      const noteEl = dom.createNoteElement(note);
-
-      // Only add animation class for NEW notes
-      if (!currentNoteIds.includes(note.id)) {
-        noteEl.classList.add('inserting');
-        setTimeout(() => noteEl.classList.remove('inserting'), ANIMATION.INSERT_DURATION);
+    // Use a for...of loop instead of forEach to allow awaiting
+    for (const note of localNotesCache) {
+      try {
+        const noteEl = await dom.createNoteElement(note); // Wait for the element
+        
+        // Only add animation class for NEW notes
+        if (!currentNoteIds.includes(note.id)) {
+          noteEl.classList.add('inserting');
+          setTimeout(() => noteEl.classList.remove('inserting'), ANIMATION.INSERT_DURATION);
+        }
+        
+        notesArea.appendChild(noteEl); // Now appending actual element
+      } catch (err) {
+        console.error("Error creating note element:", err);
       }
-
-      notesArea.appendChild(noteEl);
-    });
+    }
 
     // Restore editor if it was present
     if (editorEl) notesArea.prepend(editorEl);
@@ -2129,12 +2189,14 @@ window.NotesManager = NotesManager;
 // Register service worker for PWA functionality
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js')
-      .then(registration => {
-        console.log('Service Worker registered with scope:', registration.scope);
-      })
-      .catch(error => {
-        console.error('Service Worker registration failed:', error);
-      });
+    navigator.serviceWorker.register('./scripts/service-worker.js', {
+      scope: '/' // Important: Set scope to root to control entire site
+    })
+    .then(registration => {
+      console.log('Service Worker registered with scope:', registration.scope);
+    })
+    .catch(error => {
+      console.error('Service Worker registration failed:', error);
+    });
   });
 }
