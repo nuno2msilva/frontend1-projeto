@@ -85,7 +85,7 @@ export const dom = {
     editorNote.innerHTML = `
       <div class="note-title editor-title">
         <div class="title-container">
-          <input type="text" id="note-title-input" placeholder="Note title" autocomplete="off" value="${this.escapeHtml(title)}">
+          <input type="text" id="note-title-input" maxlength="30" placeholder="Note title" autocomplete="off" value="${this.escapeHtml(title)}">
         </div>
       </div>
       <div class="note-details">
