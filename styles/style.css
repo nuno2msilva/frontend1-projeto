@@ -244,6 +244,7 @@ main {
   transition: height 0.3s ease;
   scrollbar-width: none;
   -ms-overflow-style: none;
+  padding-bottom: var(--footer-space);
 }
 
 main > *:first-child {
@@ -289,7 +290,7 @@ footer {
   left: 0;
   right: 0;
   padding: 0.5rem 1rem;
-  z-index: 100;
+  z-index: 150; /* Increased from 10 to 150 */
   display: flex;
   justify-content: flex-end;
   pointer-events: none;
