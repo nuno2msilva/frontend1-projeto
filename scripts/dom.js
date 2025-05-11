@@ -31,20 +31,49 @@ export const dom = {
   createNoteElement: async function(note) {
     // Create the element structure
     const el = document.createElement('div');
-    el.className = `note-entry${note.isCompleted ? ' completed-note' : ''}`;
+    let completedClass = '';
+    if (note.isCompleted) {
+      completedClass = ' completed-note';
+    }
+    el.className = `note-entry${completedClass}`;
     el.dataset.id = note.id;
-    
+
     // Parse markdown content for the note description
     const parsedContent = await parseMarkdown(note.description);
-    
+
     // Build the inner HTML structure with note details
+    let completionIndicator = '';
+    if (note.isCompleted) {
+      completionIndicator = '<canvas class="completion-indicator" width="24" height="24"></canvas>';
+    }
+
+    let editInfo = '';
+    if (note.lastEdited) {
+      editInfo = `<div class="edit-info">✏️ ${note.lastEdited.date} @ ${note.lastEdited.time}</div>`;
+    }
+
+    let completionInfo = '';
+    if (note.isCompleted && note.completedAt) {
+      completionInfo = `<div class="completion-info">✅ ${note.completedAt.date} @ ${note.completedAt.time}</div>`;
+    }
+
+    let completeButtonClass = '';
+    let completeButtonLabel = '';
+    if (note.isCompleted) {
+      completeButtonClass = 'reset-note';
+      completeButtonLabel = 'Mark as incomplete';
+    } else {
+      completeButtonClass = 'complete-note';
+      completeButtonLabel = 'Mark as complete';
+    }
+
     el.innerHTML = `
       <div class="note-title">
         <div class="title-container">
           <h2>${note.title}</h2>
           <p>🗓️ ${note.date} @ ${note.time}</p>
         </div>
-        ${note.isCompleted ? '<canvas class="completion-indicator" width="24" height="24"></canvas>' : ''}
+        ${completionIndicator}
       </div>
       <div class="note-details">
         <div class="markdown-content">
@@ -52,12 +81,12 @@ export const dom = {
         </div>
         <div class="button-row">
           <div>
-            ${note.lastEdited ? `<div class="edit-info">✏️ ${note.lastEdited.date} @ ${note.lastEdited.time}</div>` : ''}
-            ${note.isCompleted && note.completedAt ? `<div class="completion-info">✅ ${note.completedAt.date} @ ${note.completedAt.time}</div>` : ''}
+            ${editInfo}
+            ${completionInfo}
           </div>
           <div class="action-buttons">
-            <button class="${note.isCompleted ? 'reset-note' : 'complete-note'}" 
-              aria-label="${note.isCompleted ? 'Mark as incomplete' : 'Mark as complete'}"></button>
+            <button class="${completeButtonClass}" 
+              aria-label="${completeButtonLabel}"></button>
             <button class="edit-note" aria-label="Edit note"></button>
             <button class="delete-note" aria-label="Delete note"></button>
           </div>
@@ -85,7 +114,7 @@ export const dom = {
     editorNote.innerHTML = `
       <div class="note-title editor-title">
         <div class="title-container">
-          <input type="text" id="note-title-input" maxlength="30" placeholder="Note title" autocomplete="off" value="${this.escapeHtml(title)}">
+          <input type="text" id="note-title-input" maxlength="25" placeholder="Note title" autocomplete="off" value="${this.escapeHtml(title)}">
         </div>
       </div>
       <div class="note-details">

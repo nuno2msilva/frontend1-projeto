@@ -6,7 +6,7 @@ export const time = {
     time: date.toLocaleTimeString('en-GB', { hour12: false }),
     timestamp: date.getTime()
   }),
-  
+
   // Returns the current date
   now: () => new Date(),
 
@@ -23,7 +23,7 @@ export const time = {
     }
     return note;
   },
-  
+
   // Generates a unique ID based on current timestamp
   generateId: () => `note_${Date.now()}`
 };

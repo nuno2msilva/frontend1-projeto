@@ -108,31 +108,34 @@ export function animateNoteMovement(note, oldPosition, options = {}) {
     rotation: -0.5,  // Slight rotation for visual interest
     addRotation: true
   };
-  
+
   const settings = {...defaults, ...options};
   const newPosition = note.getBoundingClientRect();
-  
+
   // Calculate movement - if too small, use minimum movement for visibility
-  const deltaY = Math.abs(oldPosition.top - newPosition.top) > 5 
-    ? oldPosition.top - newPosition.top
-    : 40; // Minimum movement for visibility
-  
+  let deltaY;
+  if (Math.abs(oldPosition.top - newPosition.top) > 5) {
+    deltaY = oldPosition.top - newPosition.top;
+  } else {
+    deltaY = 40; // Minimum movement for visibility
+  }
+
   // Add relevant classes and set will-change for performance
   note.classList.add('moving');
   note.style.willChange = 'transform';
-  
+
   // Start at old position
   note.style.transform = `translateY(${deltaY}px)`;
   note.style.transition = 'none';
-  
+
   // Force reflow to ensure transform is applied before animation starts
   note.offsetHeight;
-  
+
   // Animate to new position
   requestAnimationFrame(() => {
     note.style.transition = `transform ${settings.duration/1000}s ${settings.easing}`;
     note.style.transform = '';
-    
+
     // Add rotation if specified for more natural movement
     if (settings.addRotation) {
       note.animate([
@@ -145,13 +148,13 @@ export function animateNoteMovement(note, oldPosition, options = {}) {
       });
     }
   });
-  
+
   // Clean up after animation completes
   setTimeout(() => {
     note.style.willChange = 'auto';
     note.classList.remove('moving', 'saved');
   }, ANIMATION.CLEANUP_DELAY);
-  
+
   return deltaY;
 }
 
@@ -159,7 +162,7 @@ export function animateNoteMovement(note, oldPosition, options = {}) {
 export function captureNotePositions(selector = '.note-entry:not(.note-entry-editor)', collectSize = false) {
   const positions = {};
   const notes = Array.from(document.querySelectorAll(selector));
-  
+
   notes.forEach(note => {
     const noteId = note.dataset.id;
     if (noteId) {
@@ -168,7 +171,7 @@ export function captureNotePositions(selector = '.note-entry:not(.note-entry-edi
         top: rect.top,
         left: rect.left
       };
-      
+
       // Only collect size if needed
       if (collectSize) {
         positions[noteId].width = rect.width;
@@ -176,7 +179,7 @@ export function captureNotePositions(selector = '.note-entry:not(.note-entry-edi
       }
     }
   });
-  
+
   return positions;
 }
 

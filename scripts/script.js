@@ -8,7 +8,7 @@ import { time } from './time.js';
 import { modal } from './modal.js';
 import { dom } from './dom.js';
 import { syncManager } from './sync.js';
-import { ANIMATION, animateNotePosition, scrollElementIntoView, cubicBezier, animateNoteMovement, captureNotePositions} from './animation.js';
+import { ANIMATION, animateNotePosition, scrollElementIntoView, cubicBezier, animateNoteMovement, captureNotePositions } from './animation.js';
 
 const NotesManager = (() => {
   // Constants for localStorage keys
@@ -50,7 +50,13 @@ const NotesManager = (() => {
     if (!notesArea) return;
 
     // Remove any existing empty state
-    const existingEmpty = notesArea.querySelector('.empty-state');
+    let existingEmpty;
+    const notesContainer = dom.getNotesContainer();
+    if (notesContainer) {
+      existingEmpty = notesContainer.querySelector('.empty-state');
+    } else {
+      existingEmpty = undefined;
+    }
     if (existingEmpty) {
       existingEmpty.remove();
     }
@@ -103,7 +109,9 @@ const NotesManager = (() => {
       const newNoteEl = notesArea.querySelector(`.note-entry[data-id="${note.id}"]`);
       if (newNoteEl) {
         newNoteEl.classList.add('inserting');
-        setTimeout(() => newNoteEl.classList.remove('inserting'), ANIMATION.INSERT_DURATION);
+        setTimeout(() => {
+          newNoteEl.classList.remove('inserting');
+        }, ANIMATION.INSERT_DURATION);
       }
 
       // Queue for background sync instead of immediate API call
@@ -460,7 +468,13 @@ const NotesManager = (() => {
       });
 
       // Hide empty state when starting to edit
-      const emptyState = dom.getNotesContainer()?.querySelector('.empty-state');
+      let emptyState;
+      const notesContainer = dom.getNotesContainer();
+      if (notesContainer) {
+        emptyState = notesContainer.querySelector('.empty-state');
+      } else {
+        emptyState = undefined;
+      }
       if (emptyState) {
         emptyState.remove();
       }
@@ -483,7 +497,12 @@ const NotesManager = (() => {
           noteDescription = noteToEdit.description;
 
           // Hide the original note while editing
-          const originalNote = dom.querySelector(`.note-entry[data-id="${noteId}"]`);
+          let originalNote;
+          if (noteId) {
+            originalNote = dom.querySelector(`.note-entry[data-id="${noteId}"]`);
+          } else {
+            originalNote = null;
+          }
           if (originalNote) {
             originalNote.style.display = 'none';
           }
@@ -498,7 +517,12 @@ const NotesManager = (() => {
       if (notesArea) {
         if (noteId) {
           // For editing, insert at the position of the original note
-          const originalNote = dom.querySelector(`.note-entry[data-id="${noteId}"]`);
+          let originalNote;
+          if (noteId) {
+            originalNote = dom.querySelector(`.note-entry[data-id="${noteId}"]`);
+          } else {
+            originalNote = null;
+          }
           if (originalNote) {
             originalNote.parentNode.insertBefore(editorEl, originalNote);
           } else {
@@ -531,7 +555,13 @@ const NotesManager = (() => {
 
     // Stops editing and returns to normal view
     stopEditing: () => {
-      const editorEl = dom.querySelector('.note-entry-editor');
+      let editorEl;
+      const notesArea = dom.getNotesContainer();
+      if (notesArea) {
+        editorEl = notesArea.querySelector('.note-entry-editor');
+      } else {
+        editorEl = null;
+      }
       const noteId = editorState.noteId; // Save ID before resetting state
 
       // If we were editing an existing note, get reference BEFORE manipulating DOM
@@ -712,7 +742,12 @@ const NotesManager = (() => {
           const currentScrollPosition = notesArea ? notesArea.scrollTop : 0;
 
           // IMPORTANT: Store note reference BEFORE stopping editing
-          const originalNote = noteId ? dom.querySelector(`.note-entry[data-id="${noteId}"]`) : null;
+          let originalNote;
+          if (noteId) {
+            originalNote = dom.querySelector(`.note-entry[data-id="${noteId}"]`);
+          } else {
+            originalNote = null;
+          }
 
           // Clear editor state
           editorState.hasUnsavedChanges = false;
@@ -731,7 +766,12 @@ const NotesManager = (() => {
 
               // Double-check the note is visible after a delay
               if (noteId) {
-                const noteAgain = dom.querySelector(`.note-entry[data-id="${noteId}"]`);
+                let noteAgain;
+                if (noteId) {
+                  noteAgain = dom.querySelector(`.note-entry[data-id="${noteId}"]`);
+                } else {
+                  noteAgain = null;
+                }
                 if (noteAgain) {
                   noteAgain.style.display = '';
                   noteAgain.classList.add('active');
@@ -751,60 +791,88 @@ const NotesManager = (() => {
       const cancelBtn = dom.getElement('cancel-new-note');
 
       // Store original values to compare against
-      let originalTitle = titleInput ? titleInput.value.trim() : '';
-      let originalDesc = descInput ? descInput.value.trim() : '';
+      let originalTitle;
+      if (titleInput) {
+        originalTitle = titleInput.value.trim();
+      } else {
+        originalTitle = '';
+      }
+      let originalDesc;
+      if (descInput) {
+        originalDesc = descInput.value.trim();
+      } else {
+        originalDesc = '';
+      }
 
       // Prevent form submission on Enter key
-      titleInput?.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-        }
-      });
+      if (titleInput) {
+        titleInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+          }
+        });
+      }
 
       // Better change detection - compares against initial values
       const checkChanges = () => {
-        const currentTitle = titleInput ? titleInput.value.trim() : '';
-        const currentDesc = descInput ? descInput.value.trim() : '';
-
-        // Note is changed if either field is different from original
+        let currentTitle;
+        if (titleInput) {
+          currentTitle = titleInput.value.trim();
+        } else {
+          currentTitle = '';
+        }
+        let currentDesc;
+        if (descInput) {
+          currentDesc = descInput.value.trim();
+        } else {
+          currentDesc = '';
+        }
         editorState.hasUnsavedChanges =
           (currentTitle !== originalTitle || currentDesc !== originalDesc) &&
           (currentTitle.length > 0 || currentDesc.length > 0);
       };
 
-      titleInput?.addEventListener('input', checkChanges);
-      descInput?.addEventListener('input', checkChanges);
+      if (titleInput) {
+        titleInput.addEventListener('input', checkChanges);
+      }
+      if (descInput) {
+        descInput.addEventListener('input', checkChanges);
+      }
 
       // Save button - prevent default and handle click
-      saveBtn?.addEventListener('click', (e) => {
-        e.preventDefault();
-        editor.saveCurrentNote();
-      });
+      if (saveBtn) {
+        saveBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          editor.saveCurrentNote();
+        });
+      }
 
       // Cancel button - prevent default and handle click
-      cancelBtn?.addEventListener('click', (e) => {
-        e.preventDefault();
-        if (editorState.hasUnsavedChanges) {
-          editor.confirmUnsavedChanges();
-        } else {
-          // Get the ID before stopping edit
-          const noteId = editorState.noteId;
+      if (cancelBtn) {
+        cancelBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          if (editorState.hasUnsavedChanges) {
+            editor.confirmUnsavedChanges();
+          } else {
+            // Get the ID before stopping edit
+            const noteId = editorState.noteId;
 
-          // Then simply stop editing - the improved stopEditing handles the rest
-          editor.stopEditing();
+            // Then simply stop editing - the improved stopEditing handles the rest
+            editor.stopEditing();
 
-          // Additional safety check - force visibility after a delay
-          if (noteId) {
-            setTimeout(() => {
-              const noteAgain = dom.querySelector(`.note-entry[data-id="${noteId}"]`);
-              if (noteAgain) {
-                noteAgain.style.display = '';
-                noteAgain.classList.add('active');
-              }
-            }, 50);
+            // Additional safety check - force visibility after a delay
+            if (noteId) {
+              setTimeout(() => {
+                const noteAgain = dom.querySelector(`.note-entry[data-id="${noteId}"]`);
+                if (noteAgain) {
+                  noteAgain.style.display = '';
+                  noteAgain.classList.add('active');
+                }
+              }, 50);
+            }
           }
-        }
-      });
+        });
+      }
     },
 
     // Prevents editor from collapsing when interacting with it
@@ -882,10 +950,12 @@ const NotesManager = (() => {
 
     // Add new notes with animation
     toAdd.forEach(note => {
-      const noteEl = dom.createNoteElement(note);
+      let noteEl = dom.createNoteElement(note);
       noteEl.classList.add('inserting');
       fragment.appendChild(noteEl);
-      setTimeout(() => noteEl.classList.remove('inserting'), ANIMATION.INSERT_DURATION);
+      setTimeout(() => {
+        noteEl.classList.remove('inserting');
+      }, ANIMATION.INSERT_DURATION);
     });
 
     // Append all new notes at once
@@ -945,8 +1015,15 @@ const NotesManager = (() => {
       notesArea.appendChild(loading);
 
       // Save editor if present
-      const editorEl = notesArea.querySelector('.note-entry-editor');
-      if (editorEl) editorEl.remove();
+      let editorEl;
+      if (notesArea) {
+        editorEl = notesArea.querySelector('.note-entry-editor');
+      } else {
+        editorEl = null;
+      }
+      if (editorEl) {
+        notesArea.prepend(editorEl);
+      }
 
       try {
         // Get notes from API
@@ -957,7 +1034,7 @@ const NotesManager = (() => {
       } catch (error) {
         notesArea.innerHTML = '<div class="error-state"><p>Failed to load notes.</p></div>';
         console.error('Error displaying notes:', error);
-        console.error('Failed to load notes');        
+        console.error('Failed to load notes');
         return;
       }
     }
@@ -992,8 +1069,15 @@ const NotesManager = (() => {
     });
 
     // Save editor if present
-    const editorEl = notesArea.querySelector('.note-entry-editor');
-    if (editorEl) editorEl.remove();
+    let editorEl;
+    if (notesArea) {
+      editorEl = notesArea.querySelector('.note-entry-editor');
+    } else {
+      editorEl = null;
+    }
+    if (editorEl) {
+      notesArea.prepend(editorEl);
+    }
 
     // Get currently visible notes before clearing
     const currentNotes = Array.from(notesArea.querySelectorAll('.note-entry:not(.note-entry-editor)'));
@@ -1019,7 +1103,9 @@ const NotesManager = (() => {
         // Only add animation class for NEW notes
         if (!currentNoteIds.includes(note.id)) {
           noteEl.classList.add('inserting');
-          setTimeout(() => noteEl.classList.remove('inserting'), ANIMATION.INSERT_DURATION);
+          setTimeout(() => {
+            noteEl.classList.remove('inserting');
+          }, ANIMATION.INSERT_DURATION);
         }
 
         notesArea.appendChild(noteEl); // Now appending actual element
@@ -1029,7 +1115,9 @@ const NotesManager = (() => {
     }
 
     // Restore editor if it was present
-    if (editorEl) notesArea.prepend(editorEl);
+    if (editorEl) {
+      notesArea.prepend(editorEl);
+    }
 
     // Update scroll indicators
     setTimeout(() => updateScrollIndicators(notesArea), 100);
@@ -1118,13 +1206,17 @@ const NotesManager = (() => {
     // Add click event listener
     newNoteBtn.addEventListener('click', () => {
       // Scroll to top first
-      dom.getNotesContainer().scrollTo({
-        top: 0,
-        behavior: 'smooth'
-      });
-
-      // Start creating a new note
-      editor.startEditing();
+      const notesArea = dom.getNotesContainer();
+      if (notesArea) {
+        if (notesArea.scrollTop > 10) {
+          notesArea.scrollTo({
+            top: 0,
+            behavior: 'smooth'
+          });
+        } else {
+          editor.startEditing();
+        }
+      }
     });
   }
 
@@ -1188,7 +1280,7 @@ const NotesManager = (() => {
     if (!notesArea) return;
 
     // Handle note clicks (expand/collapse)
-    noteClickHandler = async function(e) {
+    noteClickHandler = async function (e) {
       if (modalState.changesActive || editorState.isActive) return;
 
       const noteEl = e.target.closest('.note-entry');
@@ -1250,36 +1342,38 @@ const NotesManager = (() => {
       newNoteBtn.addEventListener('click', () => {
         const notesArea = dom.getNotesContainer();
 
-        if (notesArea && notesArea.scrollTop > 10) {
-          // Animate scroll to top before showing editor
-          const startPosition = notesArea.scrollTop;
-          const startTime = performance.now();
-          const duration = 500; // 500ms for a quick but smooth scroll
+        if (notesArea) {
+          if (notesArea.scrollTop > 10) {
+            // Animate scroll to top before showing editor
+            const startPosition = notesArea.scrollTop;
+            const startTime = performance.now();
+            const duration = 500; // 500ms for a quick but smooth scroll
 
-          // Use animation frame for smooth scrolling
-          function scrollStep(timestamp) {
-            const elapsed = timestamp - startTime;
-            const progress = Math.min(elapsed / duration, 1);
+            // Use animation frame for smooth scrolling
+            function scrollStep(timestamp) {
+              const elapsed = timestamp - startTime;
+              const progress = Math.min(elapsed / duration, 1);
 
-            // Ease out cubic function for natural slowing at the end
-            const easeOutCubic = 1 - Math.pow(1 - progress, 3);
+              // Ease out cubic function for natural slowing at the end
+              const easeOutCubic = 1 - Math.pow(1 - progress, 3);
 
-            // Calculate new scroll position
-            notesArea.scrollTop = startPosition * (1 - easeOutCubic);
+              // Calculate new scroll position
+              notesArea.scrollTop = startPosition * (1 - easeOutCubic);
 
-            if (progress < 1) {
-              requestAnimationFrame(scrollStep);
-            } else {
-              // Once scrolling is complete, open the editor
-              editor.startEditing();
+              if (progress < 1) {
+                requestAnimationFrame(scrollStep);
+              } else {
+                // Once scrolling is complete, open the editor
+                editor.startEditing();
+              }
             }
-          }
 
-          // Start the animation
-          requestAnimationFrame(scrollStep);
-        } else {
-          // Already at the top, just open editor immediately
-          editor.startEditing();
+            // Start the animation
+            requestAnimationFrame(scrollStep);
+          } else {
+            // Already at the top, just open editor immediately
+            editor.startEditing();
+          }
         }
       });
     }
@@ -1293,7 +1387,7 @@ const NotesManager = (() => {
       updateScrollIndicators(notesArea);
 
       // Monitor scrolling
-      scrollHandler = function() {
+      scrollHandler = function () {
         updateScrollIndicators(notesArea);
       };
       notesArea.addEventListener('scroll', scrollHandler, { passive: true });
@@ -1374,7 +1468,10 @@ const NotesManager = (() => {
     await bootstrap();
 
     // Create scroll indicators
-    const container = document.querySelector('.container') || document.body;
+    let container = document.querySelector('.container');
+    if (!container) {
+      container = document.body;
+    }
     const topIndicator = document.createElement('div');
     topIndicator.className = 'scroll-indicator scroll-indicator-top';
     const bottomIndicator = document.createElement('div');
@@ -1396,7 +1493,7 @@ const NotesManager = (() => {
 
     setupThemeToggle();
 
-    // OTHER TERNARIES
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     let initialTheme;
     if (prefersDark) {
       initialTheme = 'dark';
@@ -1404,39 +1501,34 @@ const NotesManager = (() => {
       initialTheme = 'light';
     }
 
-    // OPTIONAL CHAINING / NULLISH CHECKS
     let data;
     if (window.getNotesData) {
       data = window.getNotesData();
     } else {
-      data = {total: 0, completed: 0};
+      data = { total: 0, completed: 0 };
     }
   });
 
   // Handler for beforeunload event to warn about unsaved changes
-  beforeUnloadHandler = function(e) {
-    // Check for unsaved editor changes OR pending operations
-    if ((editorState.isActive && editorState.hasUnsavedChanges) ||
-      syncManager.hasPendingOperations()) {
-
-      let confirmationMessage;
-      if (syncManager.hasPendingOperations()) {
-        confirmationMessage = 'Changes are still being saved to the server. Are you sure you want to leave?';
-      } else {
-        confirmationMessage = 'You have unsaved changes. Are you sure you want to leave?';
-      }
-
-      e.returnValue = confirmationMessage;
-      return confirmationMessage;
+  beforeUnloadHandler = function (e) {
+    let confirmationMessage;
+    if (syncManager.hasPendingOperations()) {
+      confirmationMessage = 'Changes are still being saved to the server. Are you sure you want to leave?';
+    } else {
+      confirmationMessage = 'You have unsaved changes. Are you sure you want to leave?';
     }
+    e.returnValue = confirmationMessage;
+    return confirmationMessage;
   };
   window.addEventListener('beforeunload', beforeUnloadHandler);
 
   // Handler for updating note counters when notes change
-  noteCounterUpdateHandler = function() {
+  noteCounterUpdateHandler = function () {
     const counters = document.querySelectorAll('note-counter');
     counters.forEach(counter => {
-      if (counter.updateCount) counter.updateCount();
+      if (counter.updateCount) {
+        counter.updateCount();
+      }
     });
   };
   window.addEventListener('notes-updated', noteCounterUpdateHandler);
@@ -1456,7 +1548,7 @@ const NotesManager = (() => {
     syncTimer,
     localNotesCache,
     modalState,
-    editorState  
+    editorState
   };
 })();
 
@@ -1466,7 +1558,7 @@ window.NotesManager = NotesManager;
 // Register service worker for PWA functionality
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./scripts/service-worker.js', {
+    navigator.serviceWorker.register('./service-worker.js', {
       scope: '/' // Important: Set scope to root to control entire site
     })
       .then(registration => {

@@ -18,8 +18,13 @@ export const modal = {
         <h3>${title}</h3>
         <p>${msg}</p>
         <div class="modal-buttons">
-          ${buttons.map(b => `<button id="${b.id}" class="${b.cls}" 
-            ${b.ariaLabel ? `aria-label="${b.ariaLabel}"` : ''}>${b.text}</button>`).join('')}
+          ${buttons.map(b => {
+            let aria = '';
+            if (b.ariaLabel) {
+              aria = `aria-label="${b.ariaLabel}"`;
+            }
+            return `<button id="${b.id}" class="${b.cls}" ${aria}>${b.text}</button>`;
+          }).join('')}
         </div>
       </div>`;
 

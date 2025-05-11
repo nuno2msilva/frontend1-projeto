@@ -18,7 +18,12 @@ export class NoteCounter extends HTMLElement {
   // Update the counter with current note statistics
   updateCount() {
     // Get note data from global function or use empty defaults
-    const data = window.getNotesData ? window.getNotesData() : {total: 0, completed: 0};
+    let data;
+    if (window.getNotesData) {
+      data = window.getNotesData();
+    } else {
+      data = { total: 0, completed: 0 };
+    }
     // Update the display with the completed/total format
     this.shadowRoot.querySelector('.counter').textContent = `(${data.completed}/${data.total})`;
   }
