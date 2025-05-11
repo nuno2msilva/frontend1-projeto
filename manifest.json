@@ -1,7 +1,7 @@
 {
-  "name": "Notes App",
-  "short_name": "Notes",
-  "description": "A modern, responsive notes app for capturing and organizing your thoughts.",
+  "name": "Port-a-Notes",
+  "short_name": "PAN",
+  "description": "Minimalist but highyly functional to-do notes app. You're welcome.",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#1a1a1a",
