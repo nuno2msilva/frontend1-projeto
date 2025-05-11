@@ -117,17 +117,17 @@ const NotesManager = (() => {
     // If theme was saved before, use it
     if (savedTheme) {
       document.documentElement.setAttribute('data-theme', savedTheme);
-      themeToggle.checked = savedTheme === 'light';
+      themeToggle.checked = savedTheme === 'dark'; // Checked = dark now
     } else {
-      // Otherwise use system preference (or default to light)
+      // Otherwise use system preference (default to light)
       const initialTheme = prefersDark ? 'dark' : 'light';
       document.documentElement.setAttribute('data-theme', initialTheme);
-      themeToggle.checked = initialTheme === 'light';
+      themeToggle.checked = initialTheme === 'dark'; // Checked = dark now
     }
     
-    // Handle toggle changes
+    // Handle toggle changes (checked now means dark theme)
     themeToggle.addEventListener('change', function() {
-      const newTheme = this.checked ? 'light' : 'dark';
+      const newTheme = this.checked ? 'dark' : 'light'; // Reversed from original
       document.documentElement.setAttribute('data-theme', newTheme);
       localStorage.setItem('theme', newTheme);
       

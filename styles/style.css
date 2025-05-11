@@ -25,71 +25,80 @@
   }
 }
 
-/* Theme variables */
+/*--------------------------------------
+ * THEME VARIABLES
+ *--------------------------------------*/
 :root {
-  /* Dark theme (default) */
+  /* Light theme (default) */
+  --bg-color: #f5f5f5;
+  --text-color: #333;
+  --text-secondary-color: rgba(0, 0, 0, 0.8);
+  --border-color: rgba(0, 0, 0, 0.1);
+  --shadow-color: rgba(0, 0, 0, 0.2);
+  --note-bg-color: #ffffff;
+  --note-hover-bg: #f0f0f0;
+  
+  /* Scroll indicators for light theme */
+  --scroll-indicator-light: linear-gradient(to bottom, rgba(0, 0, 0, 0.2), transparent);
+  --scroll-indicator-light-bottom: linear-gradient(to top, rgba(0, 0, 0, 0.2), transparent);
+
+  /* Button colors for light theme */
+  --button-bg-color: #d0d0d0;
+  --button-hover-bg-color: #c0c0c0;
+  --new-note-bg-color: #e0e0e0;
+  --new-note-hover-bg-color: #d0d0d0;
+  --button-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  --button-hover-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+  
+  /* Layout dimensions */
+  --header-height: 20px;
+  --footer-space: 60px;
+  --scroll-indicator-height: 40px;
+
+  /* Common design values */
+  --border-radius-sm: 8px;
+  --border-radius-md: 12px;
+  --border-radius-lg: 99em;
+  --transition-default: 0.3s ease;
+  --animation-timing-default: 1.5s ease-out;
+  --common-spacing: 16px;
+  
+  /* Theme toggle gradient - default to dark position on right */
+  --theme-gradient: linear-gradient(to right, #2a2a2a 50%, #efefef 50%) no-repeat;
+  
+  /* Shadow system */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+}
+
+/*--------------------------------------
+ * DARK THEME
+ *--------------------------------------*/
+:root[data-theme="dark"] {
   --bg-color: #1a1a1a;
   --text-color: white;
   --text-secondary-color: rgba(255, 255, 255, 0.8);
   --border-color: rgba(255, 255, 255, 0.1);
   --shadow-color: rgba(0, 0, 0, 0.6);
   --note-bg-color: #2d2d2d;
-  --header-height: 20px;
-  --footer-space: 60px;
-  --scroll-indicator-height: 40px;
-
-  /* New common values */
-  --border-radius-sm: 8px;
-  --border-radius-md: 12px;
-  --border-radius-lg: 99em;
-  --transition-default: 0.3s ease;
-  --box-shadow-hover: 0 0 15px rgba(255, 255, 255, 0.2);
-  --box-shadow-active: 0 0 20px rgba(255, 255, 255, 0.25);
-  --animation-timing-default: 1.5s ease-out; /* Updated animation duration */
-  --common-spacing: 16px;
-
-  /* Replace all instances of these gradients with this custom property */
-  --theme-gradient: linear-gradient(to right, #efefef 50%, #2a2a2a 50%) no-repeat;
-
-  /* Button background variables for dark theme */
+  --note-hover-bg: #383838;
+  
+  /* Scroll indicators for dark theme */
+  --scroll-indicator-light: linear-gradient(to bottom, rgba(255, 255, 255, 0.2), transparent);
+  --scroll-indicator-light-bottom: linear-gradient(to top, rgba(255, 255, 255, 0.2), transparent);
+  
+  /* Button colors for dark theme */
   --button-bg-color: #444444;
   --button-hover-bg-color: #555555;
   --new-note-bg-color: #3a3a3a;
   --new-note-hover-bg-color: #4a4a4a;
-  --button-shadow: 0 1px 3px rgba(0, 0, 0, 0.2); /* Subtle shadow instead of glow */
-  --button-hover-shadow: 0 0 15px rgba(255, 255, 255, 0.2); /* Glow effect for hover only */
-
-  /* Shadow variables */
+  --button-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  --button-hover-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
+  
+  /* Shadow variables for dark theme */
   --shadow-light: 0 0 15px rgba(255, 255, 255, 0.2);
   --shadow-medium: 0 0 20px rgba(255, 255, 255, 0.25);
-
-  /* Consolidate similar shadows */
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
-  /* Use these consistently instead of repeating values */
-}
-
-:root[data-theme="light"] {
-  --bg-color: #f5f5f5;
-  --text-color: #333;
-  --text-secondary-color: rgba(0, 0, 0, 0.8);
-  --border-color: rgba(0, 0, 0, 0.1);
-  --shadow-color: rgba(0, 0, 0, 0.2);
-  --note-bg-color: #ffffff; /* Add this missing variable */
-  --note-hover-bg: #f0f0f0; /* Add this for hover state */
-  
-  /* Update scroll indicators for light theme */
-  --scroll-indicator-light: linear-gradient(to bottom, rgba(0, 0, 0, 0.2), transparent);
-  --scroll-indicator-light-bottom: linear-gradient(to top, rgba(0, 0, 0, 0.2), transparent);
-
-  /* Button background variables for light theme */
-  --button-bg-color: #d0d0d0;
-  --button-hover-bg-color: #c0c0c0;
-  --new-note-bg-color: #e0e0e0;
-  --new-note-hover-bg-color: #d0d0d0;
-  --button-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); /* Subtle shadow for light theme */
-  --button-hover-shadow: 0 0 15px rgba(0, 0, 0, 0.1); /* Subtle glow for light theme */
 }
 
 /* Animations */
