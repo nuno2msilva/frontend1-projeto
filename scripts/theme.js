@@ -10,26 +10,50 @@ export function setupThemeToggle() {
   // If theme was saved before, use it
   if (savedTheme) {
     document.documentElement.setAttribute('data-theme', savedTheme);
-    themeToggle.checked = savedTheme === 'dark'; // Checked = dark now
+    
+    if (savedTheme === 'dark') {
+      themeToggle.checked = true;
+    } else {
+      themeToggle.checked = false;
+    }
   } else {
     // Otherwise use system preference (default to light)
-    const initialTheme = prefersDark ? 'dark' : 'light';
+    let initialTheme;
+    if (prefersDark) {
+      initialTheme = 'dark';
+    } else {
+      initialTheme = 'light';
+    }
+    
     document.documentElement.setAttribute('data-theme', initialTheme);
-    themeToggle.checked = initialTheme === 'dark'; // Checked = dark now
+    
+    if (initialTheme === 'dark') {
+      themeToggle.checked = true;
+    } else {
+      themeToggle.checked = false;
+    }
   }
   
   // Handle toggle changes (checked now means dark theme)
   themeToggle.addEventListener('change', function() {
-    const newTheme = this.checked ? 'dark' : 'light'; // Reversed from original
+    let newTheme;
+    if (this.checked) {
+      newTheme = 'dark';
+    } else {
+      newTheme = 'light';
+    }
+    
     document.documentElement.setAttribute('data-theme', newTheme);
     localStorage.setItem('theme', newTheme);
     
     // Update theme-color meta tag
-    const themeColorMeta = document.querySelector('meta[name="theme-color"]:not([media])');
+    const themeColorMeta = document.getElementById('theme-color-main');
     if (themeColorMeta) {
-      themeColorMeta.setAttribute('content', 
-        newTheme === 'dark' ? '#1a1a1a' : '#f5f5f5'
-      );
+      if (newTheme === 'dark') {
+        themeColorMeta.setAttribute('content', '#1a1a1a');
+      } else {
+        themeColorMeta.setAttribute('content', '#f5f5f5');
+      }
     }
     
     // Add class for smooth transition
@@ -42,12 +66,21 @@ export function setupThemeToggle() {
 
 // Returns the system's preferred theme (dark or light)
 export function getSystemThemePreference() {
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    return 'dark';
+  } else {
+    return 'light';
+  }
 }
 
 // Returns the currently active theme
 export function getCurrentTheme() {
-  return document.documentElement.getAttribute('data-theme') || 'light';
+  const theme = document.documentElement.getAttribute('data-theme');
+  if (theme) {
+    return theme;
+  } else {
+    return 'light';
+  }
 }
 
 export default { setupThemeToggle, getSystemThemePreference, getCurrentTheme };

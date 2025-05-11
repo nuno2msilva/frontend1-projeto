@@ -152,10 +152,24 @@ const NotesManager = (() => {
       // Sort the notes by completion status and then by timestamp
       localNotesCache.sort((a, b) => {
         if (a.isCompleted !== b.isCompleted) {
-          return a.isCompleted ? 1 : -1;
+          if (a.isCompleted) {
+            return 1;
+          } else {
+            return -1;
+          }
         }
-        const aTime = a.lastEdited ? a.lastEdited.timestamp : a.timestamp;
-        const bTime = b.lastEdited ? b.lastEdited.timestamp : b.timestamp;
+        let aTime;
+        if (a.lastEdited) {
+          aTime = a.lastEdited.timestamp;
+        } else {
+          aTime = a.timestamp;
+        }
+        let bTime;
+        if (b.lastEdited) {
+          bTime = b.lastEdited.timestamp;
+        } else {
+          bTime = b.timestamp;
+        }
         return bTime - aTime;
       });
 
@@ -242,7 +256,6 @@ const NotesManager = (() => {
 
         // ADD THIS: Animate scrolling to follow the edited note to its new position at the top
         if (editedNote) {
-          // Animation to scroll to the top of the list
           animateNotePosition(editedNote, notesArea, false);
         }
       }
@@ -287,9 +300,25 @@ const NotesManager = (() => {
       // Update model and sort
       localNotesCache[index] = note;
       localNotesCache.sort((a, b) => {
-        if (a.isCompleted !== b.isCompleted) return a.isCompleted ? 1 : -1;
-        const aTime = a.lastEdited ? a.lastEdited.timestamp : a.timestamp;
-        const bTime = b.lastEdited ? b.lastEdited.timestamp : b.timestamp;
+        if (a.isCompleted !== b.isCompleted) {
+          if (a.isCompleted) {
+            return 1;
+          } else {
+            return -1;
+          }
+        }
+        let aTime;
+        if (a.lastEdited) {
+          aTime = a.lastEdited.timestamp;
+        } else {
+          aTime = a.timestamp;
+        }
+        let bTime;
+        if (b.lastEdited) {
+          bTime = b.lastEdited.timestamp;
+        } else {
+          bTime = b.timestamp;
+        }
         return bTime - aTime;
       });
 
@@ -322,7 +351,11 @@ const NotesManager = (() => {
 
           // Add appropriate animation class
           if (note.dataset.id === id) {
-            note.classList.add(isCompleting ? 'completing' : 'uncompleting');
+            if (isCompleting) {
+              note.classList.add('completing');
+            } else {
+              note.classList.add('uncompleting');
+            }
           }
 
           // Start at old position
@@ -933,12 +966,26 @@ const NotesManager = (() => {
     localNotesCache.sort((a, b) => {
       // First sort by completion status
       if (a.isCompleted !== b.isCompleted) {
-        return a.isCompleted ? 1 : -1; // Uncompleted notes first
+        if (a.isCompleted) {
+          return 1;
+        } else {
+          return -1;
+        }
       }
 
       // Then sort by last edited date if available
-      const aTime = a.lastEdited ? a.lastEdited.timestamp : a.timestamp;
-      const bTime = b.lastEdited ? b.lastEdited.timestamp : b.timestamp;
+      let aTime;
+      if (a.lastEdited) {
+        aTime = a.lastEdited.timestamp;
+      } else {
+        aTime = a.timestamp;
+      }
+      let bTime;
+      if (b.lastEdited) {
+        bTime = b.lastEdited.timestamp;
+      } else {
+        bTime = b.timestamp;
+      }
 
       // Most recent first (descending order)
       return bTime - aTime;
@@ -1348,6 +1395,22 @@ const NotesManager = (() => {
     syncManager.startPeriodicSync();
 
     setupThemeToggle();
+
+    // OTHER TERNARIES
+    let initialTheme;
+    if (prefersDark) {
+      initialTheme = 'dark';
+    } else {
+      initialTheme = 'light';
+    }
+
+    // OPTIONAL CHAINING / NULLISH CHECKS
+    let data;
+    if (window.getNotesData) {
+      data = window.getNotesData();
+    } else {
+      data = {total: 0, completed: 0};
+    }
   });
 
   // Handler for beforeunload event to warn about unsaved changes
@@ -1356,9 +1419,12 @@ const NotesManager = (() => {
     if ((editorState.isActive && editorState.hasUnsavedChanges) ||
       syncManager.hasPendingOperations()) {
 
-      const confirmationMessage = syncManager.hasPendingOperations()
-        ? 'Changes are still being saved to the server. Are you sure you want to leave?'
-        : 'You have unsaved changes. Are you sure you want to leave?';
+      let confirmationMessage;
+      if (syncManager.hasPendingOperations()) {
+        confirmationMessage = 'Changes are still being saved to the server. Are you sure you want to leave?';
+      } else {
+        confirmationMessage = 'You have unsaved changes. Are you sure you want to leave?';
+      }
 
       e.returnValue = confirmationMessage;
       return confirmationMessage;
