@@ -274,7 +274,7 @@ main::-webkit-scrollbar {
 }
 
 .scroll-indicator-bottom {
-  bottom: 50px;
+  bottom: 60px;
   background: linear-gradient(to top, rgba(0, 101, 255, 0.6), transparent);
 }
 
