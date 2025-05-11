@@ -1,3 +1,37 @@
+class NoteCounter extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+  }
+
+  connectedCallback() {
+    this.render();
+    window.addEventListener('notes-updated', () => this.updateCount());
+    this.updateCount();
+  }
+
+  updateCount() {
+    const data = window.getNotesData ? window.getNotesData() : {total: 0, completed: 0};
+    this.shadowRoot.querySelector('.counter').textContent = `(${data.completed}/${data.total})`;
+  }
+
+  render() {
+    this.shadowRoot.innerHTML = `
+      <style>
+        :host {
+          display: inline-block;
+          margin-left: 10px;
+          font-size: 0.8em;
+          opacity: 0.8;
+        }
+      </style>
+      <span class="counter">(0/0)</span>
+    `;
+  }
+}
+
+customElements.define('note-counter', NoteCounter);
+
 const NotesManager = (() => {
   const API_URL = 'https://67f5684b913986b16fa476f9.mockapi.io/api/onion/NoteTaking';
   const STORAGE = { INIT: 'notesAppInitialized', VISIT: 'hasVisitedBefore' };
@@ -511,26 +545,17 @@ const NotesManager = (() => {
       el.className = `note-entry${note.isCompleted ? ' completed-note' : ''}`;
       el.dataset.id = note.id;
 
-      // Prepare the timestamps section
+      // Prepare the timestamps section (keep your existing code)
       let timestampsHTML = '<div>';
-
-      // Show edit timestamp if it exists
       if (note.lastEdited) {
         timestampsHTML += `<div class="edit-info">✏️ ${note.lastEdited.date} @ ${note.lastEdited.time}</div>`;
       }
-
-      // Show completion timestamp if completed
       if (note.isCompleted && note.completedAt) {
         timestampsHTML += `<div class="completion-info">✅ ${note.completedAt.date} @ ${note.completedAt.time}</div>`;
       }
+      timestampsHTML += '</div>';
 
-      // Close the timestamps container if empty
-      if (!note.lastEdited && !(note.isCompleted && note.completedAt)) {
-        timestampsHTML += '</div>';
-      } else {
-        timestampsHTML += '</div>';
-      }
-
+      // Keep your existing HTML structure but apply Markdown to the content
       el.innerHTML = `
         <div class="note-title">
           <div class="title-container">
@@ -540,7 +565,9 @@ const NotesManager = (() => {
           ${note.isCompleted ? '<canvas class="completion-indicator" width="24" height="24"></canvas>' : ''}
         </div>
         <div class="note-details">
-          <p>${note.description || 'No description provided.'}</p>
+          <div class="markdown-content">
+            ${marked.parse(note.description || 'No description provided.')}
+          </div>
           <div class="button-row">
             ${timestampsHTML}
             <div class="action-buttons">
@@ -552,7 +579,7 @@ const NotesManager = (() => {
           </div>
         </div>`;
 
-      // Draw completion indicator
+      // Draw completion indicator (keep your existing code)
       if (note.isCompleted) {
         const canvas = el.querySelector('canvas');
         const ctx = canvas.getContext('2d');
@@ -835,6 +862,7 @@ const NotesManager = (() => {
 
       // Queue for background sync instead of immediate API call
       syncManager.addOperation('create', note.id, note);
+      dispatchNotesUpdatedEvent();
       return note;
     },
 
@@ -974,7 +1002,7 @@ const NotesManager = (() => {
 
       // Queue for background sync instead of immediate API call
       syncManager.addOperation('update', id, updatedNote);
-
+      dispatchNotesUpdatedEvent();
       return updatedNote;
     },
 
@@ -1098,6 +1126,7 @@ const NotesManager = (() => {
 
       // Queue for background sync instead of immediate API call
       syncManager.addOperation('update', id, note);
+      dispatchNotesUpdatedEvent();
     },
 
     delete: async (id) => {
@@ -1124,6 +1153,9 @@ const NotesManager = (() => {
               const notesArea = dom.getNotesContainer();
               updateEmptyState(notesArea);
             }
+            
+            // Fire the event AFTER the note is removed from the cache
+            dispatchNotesUpdatedEvent();
           }, ANIMATION.DELETE_DURATION);
         }
 
@@ -1695,6 +1727,7 @@ const NotesManager = (() => {
 
     // Update scroll indicators
     setTimeout(() => updateScrollIndicators(notesArea), 100);
+    dispatchNotesUpdatedEvent();
   }
 
   // Scroll indicator functions
@@ -1791,6 +1824,20 @@ const NotesManager = (() => {
       editor.startEditing();
     });
   }
+
+  // Add this function to your NotesManager module
+  function dispatchNotesUpdatedEvent() {
+    window.dispatchEvent(new CustomEvent('notes-updated'));
+  }
+
+  // Add this inside the NotesManager IIFE, near the end before the "return" statement:
+  // Make the notes cache accessible to the counter component
+  window.getNotesData = function() {
+    return {
+      total: localNotesCache.length,
+      completed: localNotesCache.filter(note => note.isCompleted).length
+    };
+  };
 
   // Bootstrap
   async function bootstrap() {
@@ -1973,22 +2020,52 @@ const NotesManager = (() => {
     }
   }
 
-  // Add this function to clean up resources
+  // Enhanced destroy function - add to your code
   function destroy() {
-    // Remove event listeners
+    // Remove document-level listeners
     document.removeEventListener('click', editor.handleOutsideClick, true);
-    window.removeEventListener('resize', updateLayoutVariables);
     
-    // Clear sync timer
+    // Remove window listeners
+    window.removeEventListener('resize', updateLayoutVariables);
+    window.removeEventListener('resize', debounce(updateLayoutVariables));
+    window.removeEventListener('resize', debounce(() => {
+      const notesArea = dom.getNotesContainer();
+      if (notesArea) updateScrollIndicators(notesArea);
+    }));
+    window.removeEventListener('beforeunload', beforeUnloadHandler);
+    window.removeEventListener('notes-updated', noteCounterUpdateHandler);
+    
+    // Remove notes area listeners
+    const notesArea = dom.getNotesContainer();
+    if (notesArea) {
+      notesArea.removeEventListener('click', noteClickHandler);
+      notesArea.removeEventListener('scroll', scrollHandler);
+    }
+    
+    // Clean up IntersectionObservers
+    if (topObserver) topObserver.disconnect();
+    if (bottomObserver) bottomObserver.disconnect();
+    
+    // Clear timers
     if (syncTimer) {
       clearInterval(syncTimer);
       syncTimer = null;
+    }
+    
+    if (syncManager.pendingSyncTimeout) {
+      clearTimeout(syncManager.pendingSyncTimeout);
+      syncManager.pendingSyncTimeout = null;
     }
     
     // Clear any animation frames
     if (window.scrollAnimation) {
       cancelAnimationFrame(window.scrollAnimation);
     }
+    
+    // Remove all note counter elements
+    document.querySelectorAll('note-counter').forEach(counter => {
+      counter.remove();
+    });
   }
 
   // Initialize the app when DOM is ready

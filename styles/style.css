@@ -192,18 +192,21 @@ header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 1.5rem; /* Keep horizontal padding */
+  padding: 0; /* Keep horizontal padding */
   margin-bottom: 0; /* Ensure no bottom margin */
+  height: 60px;
 }
 
 header h1 {
-  font-size: 36px; /* Choose your preferred size */
+  font-size: 1.2rem;
 }
 
 .app-title {
-  padding: 0.5rem 1rem; /* Reduce vertical padding */
+  padding: 0.5rem 1rem;
   margin: 0;
   text-align: left;
+  font-size: 1.2rem; /* Match note title size */
+  font-weight: 600; /* Match note title weight */
 }
 
 /* Scrollable main content area */
@@ -971,4 +974,43 @@ footer {
 .transition-buttons {
   transition: background-color 0.2s ease,
               box-shadow 0.3s ease;
+}
+
+/* Add this to your CSS file */
+.markdown-content {
+  line-height: 1.6;
+}
+
+.markdown-content h1, 
+.markdown-content h2, 
+.markdown-content h3 {
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+}
+
+.markdown-content ul, 
+.markdown-content ol {
+  padding-left: 2em;
+}
+
+.markdown-content blockquote {
+  border-left: 3px solid var(--border-color);
+  padding-left: 1em;
+  margin-left: 0;
+  color: var(--text-secondary-color);
+}
+
+.markdown-content code {
+  background-color: rgba(0, 0, 0, 0.1);
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+}
+
+.markdown-content a {
+  color: #58a6ff;
+  text-decoration: none;
+}
+
+.markdown-content a:hover {
+  text-decoration: underline;
 }
