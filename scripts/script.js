@@ -53,7 +53,7 @@ const NotesManager = (() => {
     }, 3000);
   }
 
-  // Add this function to your NotesManager IIFE
+  // Updated setupThemeToggle function
   function setupThemeToggle() {
     const themeToggle = document.querySelector('.theme-checkbox');
     if (!themeToggle) return;
@@ -67,9 +67,10 @@ const NotesManager = (() => {
       document.documentElement.setAttribute('data-theme', savedTheme);
       themeToggle.checked = savedTheme === 'light';
     } else {
-      // Otherwise use system preference
-      document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
-      themeToggle.checked = !prefersDark;
+      // Otherwise use system preference (or default to light)
+      const initialTheme = prefersDark ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', initialTheme);
+      themeToggle.checked = initialTheme === 'light';
     }
     
     // Handle toggle changes
@@ -78,7 +79,7 @@ const NotesManager = (() => {
       document.documentElement.setAttribute('data-theme', newTheme);
       localStorage.setItem('theme', newTheme);
       
-      // Optional - add class for smooth transition
+      // Add class for smooth transition
       document.body.classList.add('theme-transition');
       setTimeout(() => {
         document.body.classList.remove('theme-transition');

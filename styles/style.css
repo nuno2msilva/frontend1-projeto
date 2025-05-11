@@ -5,6 +5,26 @@
   box-sizing: border-box;
 }
 
+/* Add this near the top of your CSS file */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  
+  /* Disable note animations */
+  .note-entry.moving,
+  .note-entry.completing,
+  .note-entry.uncompleting,
+  .note-entry.saved,
+  .note-entry.saved.moving {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
 /* Theme variables */
 :root {
   /* Dark theme (default) */
@@ -42,6 +62,12 @@
   /* Shadow variables */
   --shadow-light: 0 0 15px rgba(255, 255, 255, 0.2);
   --shadow-medium: 0 0 20px rgba(255, 255, 255, 0.25);
+
+  /* Consolidate similar shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+  /* Use these consistently instead of repeating values */
 }
 
 :root[data-theme="light"] {
@@ -122,8 +148,8 @@
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25) !important;
   transform-style: preserve-3d;
   backface-visibility: hidden;
-  @extend .animate;
-  @extend .animate-lift;
+  will-change: transform, opacity;
+  animation: lift-note 1.5s linear forwards !important;
 }
 
 /* Remove the blue flash when saving edited notes */
@@ -147,9 +173,11 @@
 .note-entry.completing,
 .note-entry.uncompleting,
 .note-entry.saved {
-  @extend .animate;
-  @extend .animate-lift;
+  will-change: transform, opacity;
+  animation: lift-note 1.5s linear forwards !important;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25) !important;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
 }
 
 /* Layout */
@@ -438,8 +466,8 @@ footer {
 
 /* Animation classes */
 .note-entry.inserting {
-  @extend .animate;
-  @extend .animate-insert;
+  will-change: transform, opacity;
+  animation: noteInsert 1.5s ease-out forwards;
 }
 
 /* Common properties for animating notes */
@@ -485,8 +513,6 @@ footer {
   z-index: 100 !important;
   position: relative;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25) !important;
-  @extend .animate;
-  @extend .animate-lift;
 }
 
 /* Note title */
